@@ -16,12 +16,14 @@ use crate::utils::blur::calculate_blur_sigmas;
 use crate::utils::color::get_island_border_weights;
 use crate::utils::mouse::{get_global_cursor_pos, is_point_in_rect};
 use crate::utils::physics::Spring;
+use crate::core::smtc::SmtcListener;
 use crate::window::tray::{TrayAction, TrayManager};
 
 pub struct App {
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
     tray: Option<TrayManager>,
+    smtc: SmtcListener,
 
     config: AppConfig,
     expanded: bool,
@@ -42,6 +44,9 @@ pub struct App {
     win_y: i32,
 
     frame_count: u64,
+
+    last_media_title: String,
+    last_media_playing: bool,
 }
 
 impl Default for App {
@@ -61,11 +66,14 @@ impl Default for App {
             spring_h: Spring::new(config.base_height * config.global_scale),
             spring_r: Spring::new((config.base_height * config.global_scale) / 2.0),
             spring_view: Spring::new(0.0),
+            smtc: SmtcListener::new(),
             os_w: 0,
             os_h: 0,
             win_x: 0,
             win_y: 0,
             frame_count: 0,
+            last_media_title: String::new(),
+            last_media_playing: false,
         }
     }
 }
@@ -145,7 +153,6 @@ impl ApplicationHandler for App {
                             if self.expanded {
                                 let center_y = island_y + self.spring_h.value as f64 / 2.0;
                                 if !self.tools_view {
-                                    
                                     let btn_x = offset_x + self.spring_w.value as f64 - 20.0;
                                     let dist_sq = (rel_x as f64 - btn_x).powi(2) + (rel_y as f64 - center_y).powi(2);
                                     if dist_sq <= 25.0f64.powi(2) {
@@ -154,7 +161,6 @@ impl ApplicationHandler for App {
                                         return;
                                     }
                                 } else {
-                                    
                                     let btn_x = offset_x + 20.0;
                                     let dist_sq = (rel_x as f64 - btn_x).powi(2) + (rel_y as f64 - center_y).powi(2);
                                     if dist_sq <= 25.0f64.powi(2) {
@@ -162,21 +168,31 @@ impl ApplicationHandler for App {
                                         self.spring_view.velocity *= 0.2;
                                         return;
                                     }
-                                    
+
                                     let grid_w = self.spring_w.value - 80.0;
                                     let grid_h = self.spring_h.value - 40.0;
                                     let x_step = (grid_w / 5.0) as f64;
                                     let y_step = (grid_h / 3.0) as f64;
                                     let start_x = offset_x + 40.0 + x_step / 2.0;
                                     let start_y = island_y + 20.0 + y_step / 2.0;
-                                    
+
                                     let settings_cx = start_x + (0.0 * x_step);
                                     let settings_cy = start_y + (0.0 * y_step);
-                                    
-                                    let dist_sq = (rel_x as f64 - settings_cx as f64).powi(2) + (rel_y as f64 - settings_cy as f64).powi(2);
-                                    if dist_sq <= 28.0f64.powi(2) {
+
+                                    let dist_sq_s = (rel_x as f64 - settings_cx as f64).powi(2) + (rel_y as f64 - settings_cy as f64).powi(2);
+                                    if dist_sq_s <= 28.0f64.powi(2) {
                                         let _ = std::process::Command::new(std::env::current_exe().unwrap())
                                             .arg("--settings")
+                                            .spawn();
+                                        return;
+                                    }
+
+                                    let music_cx = start_x + (1.0 * x_step);
+                                    let music_cy = start_y + (0.0 * y_step);
+                                    let dist_sq_m = (rel_x as f64 - music_cx as f64).powi(2) + (rel_y as f64 - music_cy as f64).powi(2);
+                                    if dist_sq_m <= 28.0f64.powi(2) {
+                                        let _ = std::process::Command::new(std::env::current_exe().unwrap())
+                                            .arg("--music-settings")
                                             .spawn();
                                         return;
                                     }
@@ -201,18 +217,24 @@ impl ApplicationHandler for App {
                         if let Some(surface) = self.surface.as_mut() {
                             let sigmas = if self.config.motion_blur {
                                 calculate_blur_sigmas(
-                                    self.spring_w.velocity, 
-                                    self.spring_h.velocity, 
+                                    self.spring_w.velocity,
+                                    self.spring_h.velocity,
                                     self.spring_view.velocity,
                                     self.spring_w.value
                                 )
                             } else {
                                 (0.0, 0.0)
                             };
-                            
+
                             let total_w = (self.config.expanded_width - self.config.base_width).abs().max(1.0) * self.config.global_scale;
                             let dist_w = (self.spring_w.value - self.config.base_width * self.config.global_scale).abs();
                             let progress = (dist_w / total_w).clamp(0.0, 1.0);
+
+                            let media_info = if self.config.smtc_enabled {
+                                self.smtc.get_info()
+                            } else {
+                                crate::core::smtc::MediaInfo::default()
+                            };
 
                             draw_island(
                                 surface,
@@ -225,6 +247,7 @@ impl ApplicationHandler for App {
                                 sigmas,
                                 progress,
                                 self.spring_view.value,
+                                &media_info,
                             );
                         }
                     }
@@ -321,6 +344,15 @@ impl ApplicationHandler for App {
                     border_changed = true;
                 } else {
                     self.border_weights[i] = self.target_border_weights[i];
+                }
+            }
+
+            if self.config.smtc_enabled {
+                let media = self.smtc.get_info();
+                if media.title != self.last_media_title || media.is_playing != self.last_media_playing {
+                    self.last_media_title = media.title.clone();
+                    self.last_media_playing = media.is_playing;
+                    window.request_redraw();
                 }
             }
 

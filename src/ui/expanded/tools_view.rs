@@ -1,6 +1,7 @@
 use skia_safe::{Canvas, Color, Paint};
 use crate::icons::arrows::draw_arrow_left;
 use crate::icons::settings::draw_settings_icon;
+use crate::icons::music::draw_music_icon;
 
 pub fn draw_tools_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: u8) {
     draw_arrow_left(canvas, ox + 20.0, oy + h / 2.0, alpha);
@@ -27,11 +28,14 @@ fn draw_watch_grid_tools(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alph
             let cy = start_y + (r as f32 * y_step);
             
             let is_settings = r == 0 && c == 0;
-            let final_alpha = if is_settings { alpha } else { (alpha as f32 * 0.2) as u8 };
+            let is_music = r == 0 && c == 1;
+            let final_alpha = if is_settings || is_music { alpha } else { (alpha as f32 * 0.2) as u8 };
             
             draw_tool_bubble(canvas, cx, cy, bubble_r, final_alpha, |canvas, x, y, a| {
                 if is_settings {
                     draw_settings_icon(canvas, x, y, a);
+                } else if is_music {
+                    draw_music_icon(canvas, x, y, a);
                 }
             });
         }

@@ -20,6 +20,9 @@ fn main() {
     if args.iter().any(|arg| arg == "--settings") {
         let config = crate::core::persistence::load_config();
         crate::window::settings::run_settings(config);
+    } else if args.iter().any(|arg| arg == "--music-settings") {
+        let config = crate::core::persistence::load_config();
+        crate::window::music_settings::run_music_settings(config);
     } else {
         unsafe {
             let _ = CreateMutexW(None, true, w!("Global\\WinIsland_SingleInstance_Mutex"));

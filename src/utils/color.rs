@@ -1,45 +1,15 @@
-use windows::Win32::Foundation::HWND;
-use windows::Win32::Graphics::Gdi::{GetDC, GetPixel, ReleaseDC, HDC};
+use skia_safe::Color;
 
-pub struct ColorSampler {
-    hdc: HDC,
-}
-
-impl ColorSampler {
-    pub fn new() -> Self {
-        let hdc = unsafe { GetDC(HWND::default()) };
-        Self { hdc }
-    }
-
-    pub fn get_brightness(&self, x: i32, y: i32) -> f32 {
-        let color = unsafe { GetPixel(self.hdc, x, y) };
-        let r = (color.0 & 0x000000FF) as u8;
-        let g = ((color.0 & 0x0000FF00) >> 8) as u8;
-        let b = ((color.0 & 0x00FF0000) >> 16) as u8;
-        
-        let luminance = 0.299 * r as f32 + 0.587 * g as f32 + 0.114 * b as f32;
-        (1.0 - (luminance / 255.0)).clamp(0.0, 1.0)
-    }
-}
-
-impl Drop for ColorSampler {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = ReleaseDC(HWND::default(), self.hdc);
-        }
-    }
-}
+pub const COLOR_BG: Color = Color::from_rgb(28, 28, 30);
+pub const COLOR_CARD: Color = Color::from_rgb(44, 44, 46);
+pub const COLOR_CARD_HIGHLIGHT: Color = Color::from_rgb(63, 63, 66);
+pub const COLOR_ACCENT: Color = Color::from_rgb(10, 132, 255);
+pub const COLOR_ACCENT_PINK: Color = Color::from_rgb(255, 45, 85);
+pub const COLOR_TEXT_PRI: Color = Color::WHITE;
+pub const COLOR_TEXT_SEC: Color = Color::from_rgb(142, 142, 147);
+pub const COLOR_DANGER: Color = Color::from_rgb(255, 69, 58);
+pub const COLOR_DISABLED: Color = Color::from_rgb(60, 60, 60);
 
 pub fn get_island_border_weights(cx: i32, cy: i32, w: f32, h: f32) -> [f32; 4] {
-    let sampler = ColorSampler::new();
-    
-    let offset_x = (w / 2.0 + 45.0) as i32;
-    let offset_y = (h / 2.0 + 45.0) as i32;
-
-    [
-        sampler.get_brightness(cx + offset_x, cy),
-        sampler.get_brightness(cx, cy + offset_y),
-        sampler.get_brightness(cx - offset_x, cy),
-        sampler.get_brightness(cx, cy - offset_y),
-    ]
+    [0.0, 0.0, 0.0, 0.0]
 }

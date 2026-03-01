@@ -5,6 +5,7 @@ use winit::window::Window;
 use crate::core::config::PADDING;
 use crate::ui::expanded::main_view::draw_main_page;
 use crate::ui::expanded::tools_view::draw_tools_page;
+use crate::core::smtc::MediaInfo;
 
 pub fn draw_island(
     surface: &mut Surface<Arc<Window>, Arc<Window>>,
@@ -17,6 +18,7 @@ pub fn draw_island(
     sigmas: (f32, f32),
     expansion_progress: f32,
     view_offset: f32,
+    media: &MediaInfo,
 ) {
     let mut buffer = surface.buffer_mut().unwrap();
     let mut sk_surface = surfaces::raster_n32_premul(skia_safe::ISize::new(os_w as i32, os_h as i32)).unwrap();
@@ -34,7 +36,6 @@ pub fn draw_island(
     );
     let rrect = RRect::new_rect_xy(rect, current_r, current_r);
 
-    
     let has_blur = sigmas.0 > 0.1 || sigmas.1 > 0.1;
     let blur_filter = if has_blur {
         image_filters::blur(sigmas, None, None, None)
@@ -42,11 +43,9 @@ pub fn draw_island(
         None
     };
 
-    
     canvas.save();
     canvas.clip_rrect(rrect, skia_safe::ClipOp::Intersect, true);
 
-    
     let mut bg_paint = Paint::default();
     bg_paint.set_color(Color::BLACK);
     bg_paint.set_anti_alias(true);
@@ -64,7 +63,6 @@ pub fn draw_island(
         canvas.draw_rrect(rrect, &bg_paint);
     }
 
-    
     if expansion_progress > 0.01 {
         let alpha_factor = (expansion_progress.powf(2.5)).clamp(0.0, 1.0);
         let alpha = (alpha_factor * 255.0) as u8;
@@ -77,13 +75,11 @@ pub fn draw_island(
             }
         }
 
-        
         canvas.save();
         canvas.translate((-view_offset * current_w, 0.0));
-        draw_main_page(canvas, offset_x, offset_y, current_w, current_h, alpha);
+        draw_main_page(canvas, offset_x, offset_y, current_w, current_h, alpha, media);
         canvas.restore();
 
-        
         canvas.save();
         canvas.translate(((1.0 - view_offset) * current_w, 0.0));
         draw_tools_page(canvas, offset_x, offset_y, current_w, current_h, alpha);
@@ -94,7 +90,6 @@ pub fn draw_island(
         }
     }
 
-    
     let total_weight: f32 = weights.iter().sum();
     if total_weight > 0.01 {
         let center = Point::new(os_w as f32 / 2.0, offset_y + current_h / 2.0);

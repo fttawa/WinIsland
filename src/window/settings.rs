@@ -1,5 +1,6 @@
 use crate::core::config::{AppConfig, APP_AUTHOR, APP_HOMEPAGE, APP_VERSION};
 use crate::core::persistence::save_config;
+use crate::utils::color::*;
 use skia_safe::{surfaces, Color, Font, FontMgr, FontStyle, Paint, Rect};
 use softbuffer::{Context, Surface};
 use std::sync::Arc;
@@ -9,7 +10,7 @@ use windows::Win32::System::Threading::{OpenMutexW, MUTEX_ALL_ACCESS};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, MouseButton, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
 
 const SETTINGS_W: f32 = 400.0;
@@ -56,32 +57,24 @@ impl SettingsApp {
         let scale = win.scale_factor() as f32;
         let p_w = (SETTINGS_W * scale) as i32;
         let p_h = (SETTINGS_H * scale) as i32;
-
         if p_w <= 0 || p_h <= 0 { return; }
 
         let mut sk_surface = surfaces::raster_n32_premul(skia_safe::ISize::new(p_w, p_h)).unwrap();
         let canvas = sk_surface.canvas();
-        canvas.clear(Color::from_rgb(245, 245, 247));
-        
+        canvas.clear(COLOR_BG);
         canvas.scale((scale, scale));
 
-        let (config, active_tab, switch_pos, blur_pos) = (self.config.clone(), self.active_tab, self.border_switch_pos, self.blur_switch_pos);
-        self.draw_tabs(canvas, active_tab);
+        self.draw_tabs(canvas);
 
-        if active_tab == 0 {
-            self.draw_general(canvas, &config, switch_pos, blur_pos);
+        if self.active_tab == 0 {
+            self.draw_general(canvas);
         } else {
             self.draw_about(canvas);
         }
 
         if let Some(surface) = self.surface.as_mut() {
             let mut buffer = surface.buffer_mut().unwrap();
-            let info = skia_safe::ImageInfo::new(
-                skia_safe::ISize::new(p_w, p_h),
-                skia_safe::ColorType::BGRA8888,
-                skia_safe::AlphaType::Premul,
-                None,
-            );
+            let info = skia_safe::ImageInfo::new(skia_safe::ISize::new(p_w, p_h), skia_safe::ColorType::BGRA8888, skia_safe::AlphaType::Premul, None);
             let dst_row_bytes = (p_w * 4) as usize;
             let u8_buffer: &mut [u8] = bytemuck::cast_slice_mut(&mut *buffer);
             let _ = sk_surface.read_pixels(&info, u8_buffer, dst_row_bytes, (0, 0));
@@ -89,7 +82,7 @@ impl SettingsApp {
         }
     }
 
-    fn draw_tabs(&self, canvas: &skia_safe::Canvas, active_tab: usize) {
+    fn draw_tabs(&self, canvas: &skia_safe::Canvas) {
         let font = self.get_font(14.0, true);
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
@@ -97,286 +90,223 @@ impl SettingsApp {
         let center_x = SETTINGS_W / 2.0;
         let tabs = ["General", "About"];
         
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(center_x - 85.0, 20.0, 170.0, 36.0), 10.0, 10.0, &paint);
+
         for (i, label) in tabs.iter().enumerate() {
-            let bx = center_x - 80.0 + (i as f32 * 80.0);
-            let rect = Rect::from_xywh(bx, 20.0, 75.0, 32.0);
-            
-            if active_tab == i {
-                paint.set_color(Color::from_rgb(0, 122, 255));
-                canvas.draw_round_rect(rect, 8.0, 8.0, &paint);
-                paint.set_color(Color::WHITE);
+            let bx = center_x - 82.0 + (i as f32 * 82.0);
+            if self.active_tab == i {
+                paint.set_color(COLOR_CARD_HIGHLIGHT);
+                canvas.draw_round_rect(Rect::from_xywh(bx, 23.0, 80.0, 30.0), 8.0, 8.0, &paint);
+                paint.set_color(COLOR_TEXT_PRI);
             } else {
-                paint.set_color(Color::from_rgb(180, 180, 185));
+                paint.set_color(COLOR_TEXT_SEC);
             }
-            
-            canvas.draw_str(label, (bx + 12.0, 41.0), &font, &paint);
+            let (_, rect) = font.measure_str(label, None);
+            canvas.draw_str(label, (bx + (80.0 - rect.width()) / 2.0, 43.0), &font, &paint);
         }
     }
 
-    fn draw_general(&self, canvas: &skia_safe::Canvas, config: &AppConfig, switch_pos: f32, blur_pos: f32) {
+    fn draw_general(&self, canvas: &skia_safe::Canvas) {
         let font = self.get_font(14.0, false);
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
 
         let items = [
-            ("Global Scale", format!("{:.2}", config.global_scale)),
-            ("Base Width", config.base_width.to_string()),
-            ("Base Height", config.base_height.to_string()),
-            ("Expanded Width", config.expanded_width.to_string()),
-            ("Expanded Height", config.expanded_height.to_string()),
+            ("Global Scale", format!("{:.2}", self.config.global_scale)),
+            ("Base Width", self.config.base_width.to_string()),
+            ("Base Height", self.config.base_height.to_string()),
+            ("Expanded Width", self.config.expanded_width.to_string()),
+            ("Expanded Height", self.config.expanded_height.to_string()),
         ];
 
         let start_y = 90.0;
         for (i, (label, val)) in items.iter().enumerate() {
             let y = start_y + (i as f32 * 50.0);
-            paint.set_color(Color::from_rgb(50, 50, 50));
-            canvas.draw_str(label, (30.0, y + 18.0), &font, &paint);
             
-            self.draw_button(canvas, 270.0, y, "-");
-            paint.set_color(Color::BLACK);
-            let text_x = 315.0 - (val.len() as f32 * 4.0);
-            canvas.draw_str(val, (text_x, y + 18.0), &font, &paint);
-            self.draw_button(canvas, 345.0, y, "+");
+            paint.set_color(COLOR_CARD);
+            canvas.draw_round_rect(Rect::from_xywh(20.0, y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+
+            paint.set_color(COLOR_TEXT_PRI);
+            canvas.draw_str(label, (35.0, y + 21.0), &font, &paint);
+            
+            self.draw_button(canvas, 270.0, y + 2.0, "-");
+            paint.set_color(COLOR_TEXT_PRI);
+            let (_, rect) = font.measure_str(&val, None);
+            canvas.draw_str(&val, (325.0 - rect.width() / 2.0, y + 21.0), &font, &paint);
+            self.draw_button(canvas, 345.0, y + 2.0, "+");
         }
 
         let sw_border_y = start_y + (items.len() as f32 * 50.0) + 10.0;
-        paint.set_color(Color::from_rgb(50, 50, 50));
-        canvas.draw_str("Adaptive Border", (30.0, sw_border_y + 18.0), &font, &paint);
-        self.draw_switch(canvas, 326.0, sw_border_y, switch_pos);
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, sw_border_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        canvas.draw_str("Adaptive Border", (35.0, sw_border_y + 21.0), &font, &paint);
+        self.draw_switch(canvas, 326.0, sw_border_y + 3.0, self.border_switch_pos);
 
-        let sw_blur_y = sw_border_y + 45.0;
-        paint.set_color(Color::from_rgb(50, 50, 50));
-        canvas.draw_str("Motion Blur", (30.0, sw_blur_y + 18.0), &font, &paint);
-        self.draw_switch(canvas, 326.0, sw_blur_y, blur_pos);
+        let sw_blur_y = sw_border_y + 50.0;
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, sw_blur_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        canvas.draw_str("Motion Blur", (35.0, sw_blur_y + 21.0), &font, &paint);
+        self.draw_switch(canvas, 326.0, sw_blur_y + 3.0, self.blur_switch_pos);
 
-        paint.set_color(Color::from_rgb(255, 59, 48));
-        canvas.draw_str("Reset to Defaults", (center_text_x(SETTINGS_W, "Reset to Defaults", &font), SETTINGS_H - 60.0), &font, &paint);
+        paint.set_color(COLOR_DANGER);
+        let reset_str = "Reset to Defaults";
+        let (_, rect) = font.measure_str(reset_str, None);
+        canvas.draw_str(reset_str, ((SETTINGS_W - rect.width()) / 2.0, SETTINGS_H - 40.0), &font, &paint);
     }
 
     fn draw_button(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, label: &str) {
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
-        paint.set_color(Color::WHITE);
-        let rect = Rect::from_xywh(x, y, 28.0, 28.0);
-        canvas.draw_round_rect(rect, 14.0, 14.0, &paint);
-        
-        paint.set_color(Color::from_rgb(0, 122, 255));
-        let font = self.get_font(20.0, true);
-        canvas.draw_str(label, (x + 8.0, y + 21.0), &font, &paint);
+        paint.set_color(COLOR_CARD_HIGHLIGHT);
+        canvas.draw_round_rect(Rect::from_xywh(x, y, 28.0, 28.0), 14.0, 14.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        let font = self.get_font(20.0, false);
+        let (_, rect) = font.measure_str(label, None);
+        canvas.draw_str(label, (x + (28.0 - rect.width()) / 2.0, y + 20.0), &font, &paint);
     }
 
-    fn draw_switch(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, switch_pos: f32) {
+    fn draw_switch(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, pos: f32) {
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
-        
-        let color_off = Color::from_rgb(200, 200, 205);
-        let color_on = Color::from_rgb(52, 199, 89);
-        
-        let r = color_off.r() as f32 + (color_on.r() as f32 - color_off.r() as f32) * switch_pos;
-        let g = color_off.g() as f32 + (color_on.g() as f32 - color_off.g() as f32) * switch_pos;
-        let b = color_off.b() as f32 + (color_on.b() as f32 - color_off.b() as f32) * switch_pos;
-        
+        let color_off = COLOR_CARD_HIGHLIGHT;
+        let color_on = COLOR_ACCENT;
+        let r = color_off.r() as f32 + (color_on.r() as f32 - color_off.r() as f32) * pos;
+        let g = color_off.g() as f32 + (color_on.g() as f32 - color_off.g() as f32) * pos;
+        let b = color_off.b() as f32 + (color_on.b() as f32 - color_off.b() as f32) * pos;
         paint.set_color(Color::from_rgb(r as u8, g as u8, b as u8));
-        let rect = Rect::from_xywh(x, y, 48.0, 26.0);
-        canvas.draw_round_rect(rect, 13.0, 13.0, &paint);
-        
+        canvas.draw_round_rect(Rect::from_xywh(x, y, 48.0, 26.0), 13.0, 13.0, &paint);
         paint.set_color(Color::WHITE);
-        let knob_x = x + 2.0 + (switch_pos * 22.0);
-        let knob_rect = Rect::from_xywh(knob_x, y + 2.0, 22.0, 22.0);
-        canvas.draw_round_rect(knob_rect, 11.0, 11.0, &paint);
+        canvas.draw_round_rect(Rect::from_xywh(x + 2.0 + (pos * 22.0), y + 2.0, 22.0, 22.0), 11.0, 11.0, &paint);
     }
 
     fn draw_about(&self, canvas: &skia_safe::Canvas) {
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
+        paint.set_color(COLOR_TEXT_PRI);
+        let font_title = self.get_font(28.0, true);
+        let (_, rect1) = font_title.measure_str("WinIsland", None);
+        canvas.draw_str("WinIsland", ((SETTINGS_W - rect1.width()) / 2.0, 160.0), &font_title, &paint);
         
-        paint.set_color(Color::BLACK);
-        let font_title = self.get_font(24.0, true);
-        canvas.draw_str("WinIsland", (center_text_x(SETTINGS_W, "WinIsland", &font_title), 150.0), &font_title, &paint);
-        
-        paint.set_color(Color::from_rgb(100, 100, 100));
         let font_norm = self.get_font(14.0, false);
+        paint.set_color(COLOR_TEXT_SEC);
         let v_str = format!("Version {}", APP_VERSION);
-        let a_str = format!("Created by {}", APP_AUTHOR);
-        canvas.draw_str(&v_str, (center_text_x(SETTINGS_W, &v_str, &font_norm), 185.0), &font_norm, &paint);
-        canvas.draw_str(&a_str, (center_text_x(SETTINGS_W, &a_str, &font_norm), 210.0), &font_norm, &paint);
+        let (_, rect2) = font_norm.measure_str(&v_str, None);
+        canvas.draw_str(&v_str, ((SETTINGS_W - rect2.width()) / 2.0, 195.0), &font_norm, &paint);
         
-        paint.set_color(Color::from_rgb(0, 122, 255));
-        let font_link = self.get_font(12.0, false);
-        canvas.draw_str("Visit Project Homepage", (center_text_x(SETTINGS_W, "Visit Project Homepage", &font_link), 260.0), &font_link, &paint);
+        let a_str = format!("Created by {}", APP_AUTHOR);
+        let (_, rect3) = font_norm.measure_str(&a_str, None);
+        canvas.draw_str(&a_str, ((SETTINGS_W - rect3.width()) / 2.0, 220.0), &font_norm, &paint);
+        
+        paint.set_color(COLOR_ACCENT);
+        let link_str = "Visit Project Homepage";
+        let (_, rect4) = font_norm.measure_str(link_str, None);
+        canvas.draw_str(link_str, ((SETTINGS_W - rect4.width()) / 2.0, 280.0), &font_norm, &paint);
     }
 
     fn handle_click(&mut self) {
         let (mx, my) = self.logical_mouse_pos;
-        let mut state_changed = false;
-        let center_x = SETTINGS_W / 2.0;
+        let mut changed = false;
+        let cx = SETTINGS_W / 2.0;
 
-        if my >= 10.0 && my <= 60.0 {
-            if mx >= center_x - 85.0 && mx <= center_x {
-                self.active_tab = 0;
-                state_changed = true;
-            } else if mx >= center_x && mx <= center_x + 85.0 {
-                self.active_tab = 1;
-                state_changed = true;
-            }
+        if my >= 20.0 && my <= 56.0 {
+            if mx >= cx - 85.0 && mx <= cx { self.active_tab = 0; changed = true; }
+            else if mx >= cx && mx <= cx + 85.0 { self.active_tab = 1; changed = true; }
         }
 
         if self.active_tab == 0 {
-            let start_y = 90.0;
-            self.check_btn(mx, my, 270.0, start_y, |c| c.global_scale = (c.global_scale - 0.05).max(0.5), &mut state_changed);
-            self.check_btn(mx, my, 345.0, start_y, |c| c.global_scale = (c.global_scale + 0.05).min(2.0), &mut state_changed);
+            let sy = 90.0;
+            self.check_btn(mx, my, 270.0, sy, |c| c.global_scale = (c.global_scale - 0.05).max(0.5), &mut changed);
+            self.check_btn(mx, my, 345.0, sy, |c| c.global_scale = (c.global_scale + 0.05).min(2.0), &mut changed);
+            self.check_btn(mx, my, 270.0, sy + 50.0, |c| c.base_width -= 5.0, &mut changed);
+            self.check_btn(mx, my, 345.0, sy + 50.0, |c| c.base_width += 5.0, &mut changed);
+            self.check_btn(mx, my, 270.0, sy + 100.0, |c| c.base_height -= 2.0, &mut changed);
+            self.check_btn(mx, my, 345.0, sy + 100.0, |c| c.base_height += 2.0, &mut changed);
+            self.check_btn(mx, my, 270.0, sy + 150.0, |c| c.expanded_width -= 10.0, &mut changed);
+            self.check_btn(mx, my, 345.0, sy + 150.0, |c| c.expanded_width += 10.0, &mut changed);
+            self.check_btn(mx, my, 270.0, sy + 200.0, |c| c.expanded_height -= 10.0, &mut changed);
+            self.check_btn(mx, my, 345.0, sy + 200.0, |c| c.expanded_height += 10.0, &mut changed);
             
-            self.check_btn(mx, my, 270.0, start_y + 50.0, |c| c.base_width -= 5.0, &mut state_changed);
-            self.check_btn(mx, my, 345.0, start_y + 50.0, |c| c.base_width += 5.0, &mut state_changed);
-            
-            self.check_btn(mx, my, 270.0, start_y + 100.0, |c| c.base_height -= 2.0, &mut state_changed);
-            self.check_btn(mx, my, 345.0, start_y + 100.0, |c| c.base_height += 2.0, &mut state_changed);
-            
-            self.check_btn(mx, my, 270.0, start_y + 150.0, |c| c.expanded_width -= 10.0, &mut state_changed);
-            self.check_btn(mx, my, 345.0, start_y + 150.0, |c| c.expanded_width += 10.0, &mut state_changed);
-            
-            self.check_btn(mx, my, 270.0, start_y + 200.0, |c| c.expanded_height -= 10.0, &mut state_changed);
-            self.check_btn(mx, my, 345.0, start_y + 200.0, |c| c.expanded_height += 10.0, &mut state_changed);
-            
-            let sw_border_y = start_y + (5.0 * 50.0) + 10.0;
-            if mx >= 320.0 && mx <= 380.0 && my >= sw_border_y && my <= sw_border_y + 35.0 {
+            if mx >= 320.0 && mx <= 380.0 && my >= sy + 250.0 && my <= sy + 290.0 {
                 self.config.adaptive_border = !self.config.adaptive_border;
-                state_changed = true;
+                changed = true;
             }
-
-            let sw_blur_y = sw_border_y + 45.0;
-            if mx >= 320.0 && mx <= 380.0 && my >= sw_blur_y && my <= sw_blur_y + 35.0 {
+            if mx >= 320.0 && mx <= 380.0 && my >= sy + 300.0 && my <= sy + 340.0 {
                 self.config.motion_blur = !self.config.motion_blur;
-                state_changed = true;
+                changed = true;
             }
-
-            if my >= SETTINGS_H - 80.0 && my <= SETTINGS_H - 20.0 {
-                if mx >= center_x - 100.0 && mx <= center_x + 100.0 {
-                    self.config = AppConfig::default();
-                    state_changed = true;
-                }
+            if my >= SETTINGS_H - 60.0 && my <= SETTINGS_H - 20.0 && mx >= cx - 100.0 && mx <= cx + 100.0 {
+                self.config = AppConfig::default();
+                changed = true;
             }
-        } else {
-            if my >= 240.0 && my <= 280.0 && mx >= center_x - 100.0 && mx <= center_x + 100.0 {
-                let _ = open::that(APP_HOMEPAGE);
-            }
+        } else if my >= 260.0 && my <= 300.0 && mx >= cx - 100.0 && mx <= cx + 100.0 {
+            let _ = open::that(APP_HOMEPAGE);
         }
 
-        if state_changed {
+        if changed {
             save_config(&self.config);
-            if let Some(win) = &self.window {
-                win.request_redraw();
-            }
+            if let Some(win) = &self.window { win.request_redraw(); }
         }
     }
 
-    fn check_btn<F>(&mut self, mx: f32, my: f32, bx: f32, by: f32, mut f: F, state_changed: &mut bool) 
+    fn check_btn<F>(&mut self, mx: f32, my: f32, bx: f32, by: f32, mut f: F, changed: &mut bool) 
     where F: FnMut(&mut AppConfig) {
-        if mx >= bx - 10.0 && mx <= bx + 38.0 && my >= by - 10.0 && my <= by + 38.0 {
+        if mx >= bx && mx <= bx + 28.0 && my >= by && my <= by + 28.0 {
             f(&mut self.config);
             self.config.global_scale = (self.config.global_scale * 100.0).round() / 100.0;
-            *state_changed = true;
+            *changed = true;
         }
     }
-}
-
-fn center_text_x(width: f32, text: &str, font: &Font) -> f32 {
-    let (_, rect) = font.measure_str(text, None);
-    (width - rect.width()) / 2.0
 }
 
 impl ApplicationHandler for SettingsApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        event_loop.set_control_flow(ControlFlow::Poll);
-        let attrs = Window::default_attributes()
-            .with_title("WinIsland Settings")
-            .with_inner_size(LogicalSize::new(SETTINGS_W as f64, SETTINGS_H as f64))
-            .with_resizable(false);
+        let attrs = Window::default_attributes().with_title("Settings").with_inner_size(LogicalSize::new(SETTINGS_W as f64, SETTINGS_H as f64)).with_resizable(false);
         let window = Arc::new(event_loop.create_window(attrs).unwrap());
         self.window = Some(window.clone());
-        
-        let scale = window.scale_factor();
         let context = Context::new(window.clone()).unwrap();
         let mut surface = Surface::new(&context, window.clone()).unwrap();
-        surface.resize(
-            std::num::NonZeroU32::new((SETTINGS_W as f64 * scale) as u32).unwrap(),
-            std::num::NonZeroU32::new((SETTINGS_H as f64 * scale) as u32).unwrap()
-        ).unwrap();
+        let scale = window.scale_factor();
+        surface.resize(std::num::NonZeroU32::new((SETTINGS_W as f64 * scale) as u32).unwrap(), std::num::NonZeroU32::new((SETTINGS_H as f64 * scale) as u32).unwrap()).unwrap();
         self.surface = Some(surface);
     }
-
-    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, _el: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => _event_loop.exit(),
+            WindowEvent::CloseRequested => _el.exit(),
             WindowEvent::CursorMoved { position, .. } => {
-                if let Some(win) = &self.window {
-                    let scale = win.scale_factor() as f32;
-                    self.logical_mouse_pos = (position.x as f32 / scale, position.y as f32 / scale);
-                }
+                let scale = self.window.as_ref().unwrap().scale_factor() as f32;
+                self.logical_mouse_pos = (position.x as f32 / scale, position.y as f32 / scale);
             }
-            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } => {
-                self.handle_click();
-            }
+            WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } => self.handle_click(),
             WindowEvent::RedrawRequested => self.draw(),
-            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
-                if let Some(surface) = self.surface.as_mut() {
-                    surface.resize(
-                        std::num::NonZeroU32::new((SETTINGS_W as f64 * scale_factor) as u32).unwrap(),
-                        std::num::NonZeroU32::new((SETTINGS_H as f64 * scale_factor) as u32).unwrap()
-                    ).unwrap();
-                }
-            }
             _ => (),
         }
     }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, _el: &ActiveEventLoop) {
         if let Some(win) = &self.window {
             self.frame_count += 1;
             if self.frame_count % 60 == 0 {
                 unsafe {
-                    let mutex_name = w!("Global\\WinIsland_SingleInstance_Mutex");
-                    let handle = OpenMutexW(MUTEX_ALL_ACCESS, false, mutex_name);
-                    if handle.is_err() {
-                        _event_loop.exit();
-                        return;
-                    }
-                    let _ = windows::Win32::Foundation::CloseHandle(handle.unwrap());
+                    let h = OpenMutexW(MUTEX_ALL_ACCESS, false, w!("Global\\WinIsland_SingleInstance_Mutex"));
+                    if h.is_err() { _el.exit(); return; }
+                    let _ = windows::Win32::Foundation::CloseHandle(h.unwrap());
                 }
             }
-
-            let mut needs_redraw = false;
-            
-            let target_border = if self.config.adaptive_border { 1.0 } else { 0.0 };
-            let diff_border = target_border - self.border_switch_pos;
-            if diff_border.abs() > 0.01 {
-                self.border_switch_pos += diff_border * 0.2;
-                needs_redraw = true;
-            } else if self.border_switch_pos != target_border {
-                self.border_switch_pos = target_border;
-                needs_redraw = true;
-            }
-
-            let target_blur = if self.config.motion_blur { 1.0 } else { 0.0 };
-            let diff_blur = target_blur - self.blur_switch_pos;
-            if diff_blur.abs() > 0.01 {
-                self.blur_switch_pos += diff_blur * 0.2;
-                needs_redraw = true;
-            } else if self.blur_switch_pos != target_blur {
-                self.blur_switch_pos = target_blur;
-                needs_redraw = true;
-            }
-
-            if needs_redraw {
-                win.request_redraw();
-            }
+            let mut redraw = false;
+            let tb = if self.config.adaptive_border { 1.0 } else { 0.0 };
+            if (tb - self.border_switch_pos).abs() > 0.01 { self.border_switch_pos += (tb - self.border_switch_pos) * 0.2; redraw = true; }
+            let tbu = if self.config.motion_blur { 1.0 } else { 0.0 };
+            if (tbu - self.blur_switch_pos).abs() > 0.01 { self.blur_switch_pos += (tbu - self.blur_switch_pos) * 0.2; redraw = true; }
+            if redraw { win.request_redraw(); }
             std::thread::sleep(Duration::from_millis(16));
         }
     }
 }
 
 pub fn run_settings(config: AppConfig) {
-    let event_loop = EventLoop::new().unwrap();
+    let el = EventLoop::new().unwrap();
     let mut app = SettingsApp::new(config);
-    event_loop.run_app(&mut app).unwrap();
+    el.run_app(&mut app).unwrap();
 }
