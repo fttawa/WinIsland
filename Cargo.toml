@@ -9,13 +9,10 @@ realfft = "3.3"
 bytemuck = "1.25.0"
 skia-safe = "0.93.1"
 softbuffer = "0.4.8"
-windows-core = "0.58"
-tokio = { version = "1.49.0", features = ["rt", "time", "macros"] }
 tray-icon = "0.19"
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_Graphics_Gdi", "Win32_Security", "Media_Control", "Foundation", "Foundation_Collections", "Storage_Streams", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Variant"] }
 winit = "0.30"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
-directories = "6.0"
 dirs = "6.0"
 open = "5.3"

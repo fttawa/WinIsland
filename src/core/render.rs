@@ -1,4 +1,4 @@
-﻿use skia_safe::{Color, Paint, Rect, RRect, surfaces, gradient_shader, Point, image_filters, Surface as SkSurface, SamplingOptions, FilterMode, MipmapMode, TileMode, ISize, ClipOp};
+use skia_safe::{Color, Paint, Rect, RRect, surfaces, gradient_shader, Point, image_filters, Surface as SkSurface, SamplingOptions, FilterMode, MipmapMode, TileMode, ISize, ClipOp};
 use softbuffer::Surface;
 use std::sync::Arc;
 use std::cell::RefCell;
@@ -24,6 +24,8 @@ pub fn draw_island(
     media: &MediaInfo,
     music_active: bool,
     global_scale: f32,
+    tool_hovers: &[f32; 15],
+    tool_presses: &[f32; 15],
 ) {
     let mut buffer = surface.buffer_mut().unwrap();
     let mut sk_surface = SK_SURFACE.with(|cell| {
@@ -66,7 +68,7 @@ pub fn draw_island(
         canvas.restore();
         canvas.save();
         canvas.translate(((1.0 - view_offset) * current_w, 0.0));
-        draw_tools_page(canvas, offset_x, offset_y, current_w, current_h, alpha, view_offset, global_scale);
+        draw_tools_page(canvas, offset_x, offset_y, current_w, current_h, alpha, view_offset, global_scale, tool_hovers, tool_presses);
         canvas.restore();
         if view_offset > 0.01 && view_offset < 0.99 {
             let transition_alpha = (view_offset * (1.0 - view_offset) * 4.0 * 0.4 * alpha as f32 / 255.0 * 255.0) as u8;
@@ -106,7 +108,8 @@ pub fn draw_island(
             &palette,
             &media.spectrum,
             0.55 * global_scale,
-            0.08 * global_scale
+            0.08 * global_scale,
+            (0.3, 0.05)
         );
     }
     let total_weight: f32 = weights.iter().sum();
@@ -139,3 +142,4 @@ pub fn draw_island(
     let _ = sk_surface.read_pixels(&info, u8_buffer, dst_row_bytes, (0, 0));
     buffer.present().unwrap();
 }
+

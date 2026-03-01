@@ -1,4 +1,4 @@
-﻿use crate::core::config::WINDOW_TITLE;
+use crate::core::config::WINDOW_TITLE;
 use tray_icon::menu::{Menu, MenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 pub struct TrayManager {
@@ -59,3 +59,4 @@ pub enum TrayAction {
     OpenSettings,
     Exit,
 }
+

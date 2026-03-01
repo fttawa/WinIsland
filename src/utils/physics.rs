@@ -1,4 +1,4 @@
-﻿pub struct Spring {
+pub struct Spring {
     pub value: f32,
     pub velocity: f32,
 }
@@ -15,3 +15,4 @@ impl Spring {
         self.value += self.velocity;
     }
 }
+

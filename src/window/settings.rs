@@ -1,4 +1,4 @@
-﻿use crate::core::config::{AppConfig, APP_AUTHOR, APP_HOMEPAGE, APP_VERSION};
+use crate::core::config::{AppConfig, APP_AUTHOR, APP_HOMEPAGE, APP_VERSION};
 use crate::core::persistence::save_config;
 use crate::utils::color::*;
 use skia_safe::{surfaces, Color, Font, FontMgr, FontStyle, Paint, Rect};
@@ -274,3 +274,4 @@ pub fn run_settings(config: AppConfig) {
     let mut app = SettingsApp::new(config);
     el.run_app(&mut app).unwrap();
 }
+

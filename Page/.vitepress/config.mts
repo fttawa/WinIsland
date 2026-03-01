@@ -30,7 +30,8 @@ export default defineConfig({
     ],
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright Êºè 2026-present WinIsland'
+      copyright: 'Copyright Êº?2026-present WinIsland'
     }
   }
 })
+

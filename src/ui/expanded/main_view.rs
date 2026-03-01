@@ -1,6 +1,6 @@
-﻿use skia_safe::{
+use skia_safe::{
     Canvas, Paint, Color, Font, FontStyle, FontMgr, Rect, RRect,
-    PathBuilder, Point, Data, Image, SamplingOptions, FilterMode, MipmapMode, Typeface,
+    Point, Data, Image, SamplingOptions, FilterMode, MipmapMode, Typeface,
     gradient_shader, TileMode
 };
 use crate::icons::arrows::draw_arrow_right;
@@ -151,9 +151,10 @@ pub fn draw_main_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: 
     draw_text_cached(canvas, title, (text_x, title_y), 15.0 * scale, FontStyle::bold(), &text_paint, false, max_text_w);
     text_paint.set_color(Color::from_argb((alpha as f32 * 0.6) as u8, 255, 255, 255));
     draw_text_cached(canvas, artist, (text_x, title_y + 22.0 * scale), 15.0 * scale, FontStyle::normal(), &text_paint, false, max_text_w);
-    draw_visualizer(canvas, ox + w - 45.0 * scale, title_y - 4.0 * scale, alpha, music_active && media.is_playing, &palette, &media.spectrum, scale, scale);
+    draw_visualizer(canvas, ox + w - 45.0 * scale, title_y - 4.0 * scale, alpha, music_active && media.is_playing, &palette, &media.spectrum, scale, scale, (0.5, 0.08));
 }
-pub fn draw_visualizer(canvas: &Canvas, x: f32, y: f32, alpha: u8, is_playing: bool, palette: &[Color], spectrum: &[f32; 6], w_scale: f32, h_scale: f32) {
+pub fn draw_visualizer(canvas: &Canvas, x: f32, y: f32, alpha: u8, is_playing: bool, palette: &[Color], spectrum: &[f32; 6], w_scale: f32, h_scale: f32, smooth_factors: (f32, f32)) {
+    let (rise, fall) = smooth_factors;
     let bar_count = 6;
     let bar_w = 3.0 * w_scale;
     let spacing = 2.0 * w_scale;
@@ -163,9 +164,9 @@ pub fn draw_visualizer(canvas: &Canvas, x: f32, y: f32, alpha: u8, is_playing: b
         for i in 0..bar_count {
             let target = if is_playing { (spectrum[i] * max_h).max(3.0 * h_scale) } else { 3.0 * h_scale };
             if target > heights[i] {
-                heights[i] = heights[i] * 0.5 + target * 0.5;
+                heights[i] = heights[i] * (1.0 - rise) + target * rise;
             } else {
-                heights[i] = heights[i] * 0.92 + target * 0.08;
+                heights[i] = heights[i] * (1.0 - fall) + target * fall;
             }
             heights[i] = heights[i].max(3.0 * h_scale);
         }
@@ -232,7 +233,7 @@ fn get_palette_from_image(img: &Image, cache_key: &str) -> Vec<Color> {
                     let mut g = g * factor;
                     let mut b = b * factor;
 
-                    let brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                    let brightness = r * 0.299 + g * 0.587 + b * 0.114;
                     if brightness < 80.0 {
                         let boost = 80.0 - brightness;
                         r += boost;
@@ -265,15 +266,9 @@ fn draw_placeholder(canvas: &Canvas, x: f32, y: f32, size: f32, alpha: u8, scale
     paint.set_anti_alias(true);
     paint.set_color(Color::from_argb((alpha as f32 * 0.1) as u8, 255, 255, 255));
     canvas.draw_round_rect(Rect::from_xywh(x, y, size, size), 14.0 * scale, 14.0 * scale, &paint);
-    let cx = x + size/2.0; let cy = y + size/2.0;
-    paint.set_color(Color::from_argb((alpha as f32 * 0.4) as u8, 255, 255, 255));
-    let mut builder = PathBuilder::new();
-    builder.move_to(Point::new(cx - 5.0 * scale, cy + 8.0 * scale));
-    builder.line_to(Point::new(cx - 5.0 * scale, cy - 10.0 * scale));
-    builder.line_to(Point::new(cx + 6.0 * scale, cy - 13.0 * scale));
-    builder.line_to(Point::new(cx + 6.0 * scale, cy + 5.0 * scale));
-    builder.close();
-    canvas.draw_path(&builder.detach(), &paint);
-    canvas.draw_circle(Point::new(cx - 9.0 * scale, cy + 8.0 * scale), 4.0 * scale, &paint);
-    canvas.draw_circle(Point::new(cx + 2.0 * scale, cy + 5.0 * scale), 4.0 * scale, &paint);
+    
+    let cx = x + size / 2.0;
+    let cy = y + size / 2.0;
+    crate::icons::music::draw_music_icon(canvas, cx, cy, alpha, scale * 1.8);
 }
+

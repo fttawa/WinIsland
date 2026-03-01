@@ -1,4 +1,4 @@
-﻿#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod core;
 mod window;
 mod utils;
@@ -31,3 +31,4 @@ fn main() {
         event_loop.run_app(&mut app).unwrap();
     }
 }
+

@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use softbuffer::{Context, Surface};
 use winit::application::ApplicationHandler;
@@ -38,6 +38,8 @@ pub struct App {
     win_x: i32,
     win_y: i32,
     frame_count: u64,
+    tool_hovers: [f32; 15],
+    tool_presses: [f32; 15],
     last_media_title: String,
     last_media_playing: bool,
     last_playing_time: Instant,
@@ -66,6 +68,8 @@ impl Default for App {
             win_x: 0,
             win_y: 0,
             frame_count: 0,
+            tool_hovers: [0.0; 15],
+            tool_presses: [0.0; 15],
             last_media_title: String::new(),
             last_media_playing: false,
             last_playing_time: Instant::now(),
@@ -161,6 +165,7 @@ impl ApplicationHandler for App {
                                     let settings_cy = start_y + (0.0 * y_step);
                                     let dist_sq_s = (rel_x as f64 - settings_cx).powi(2) + (rel_y as f64 - settings_cy).powi(2);
                                     if dist_sq_s <= (28.0 * scale).powi(2) {
+                                        self.tool_presses[0] = 1.0;
                                         let _ = std::process::Command::new(std::env::current_exe().unwrap())
                                             .arg("--settings")
                                             .spawn();
@@ -170,6 +175,7 @@ impl ApplicationHandler for App {
                                     let music_cy = start_y + (0.0 * y_step);
                                     let dist_sq_m = (rel_x as f64 - music_cx).powi(2) + (rel_y as f64 - music_cy).powi(2);
                                     if dist_sq_m <= (28.0 * scale).powi(2) {
+                                        self.tool_presses[1] = 1.0;
                                         let _ = std::process::Command::new(std::env::current_exe().unwrap())
                                             .arg("--music-settings")
                                             .spawn();
@@ -220,6 +226,7 @@ impl ApplicationHandler for App {
                                     music_active = true;
                                 }
                             }
+
                             draw_island(
                                 surface,
                                 self.spring_w.value,
@@ -234,6 +241,8 @@ impl ApplicationHandler for App {
                                 &media_info,
                                 music_active,
                                 self.config.global_scale,
+                                &self.tool_hovers,
+                                &self.tool_presses,
                             );
                         }
                     }
@@ -361,6 +370,44 @@ impl ApplicationHandler for App {
             self.spring_h.update(target_h, 0.10, 0.68);
             self.spring_r.update(target_r, 0.10, 0.68);
             self.spring_view.update(target_view, 0.12, 0.68);
+
+            if self.expanded && self.tools_view {
+                let grid_w = self.spring_w.value - 80.0 * self.config.global_scale;
+                let grid_h = self.spring_h.value - 40.0 * self.config.global_scale;
+                let x_step = grid_w / 5.0;
+                let y_step = grid_h / 3.0;
+                let start_x = offset_x as f32 + 40.0 * self.config.global_scale + x_step / 2.0;
+                let start_y = island_y as f32 + 20.0 * self.config.global_scale + y_step / 2.0;
+                let bubble_r = 18.0 * self.config.global_scale;
+
+                for r in 0..3 {
+                    for c in 0..5 {
+                        let idx = r * 5 + c;
+                        let cx = start_x + (c as f32 * x_step);
+                        let cy = start_y + (r as f32 * y_step);
+                        let dx = rel_x as f32 - cx;
+                        let dy = rel_y as f32 - cy;
+                        let dist_sq = dx * dx + dy * dy;
+                        let is_hover = dist_sq < (bubble_r * 1.2).powi(2);
+                        
+                        let target = if is_hover { 1.0 } else { 0.0 };
+                        let diff = target - self.tool_hovers[idx];
+                        if diff.abs() > 0.001 {
+                            self.tool_hovers[idx] += diff * 0.15;
+                            window.request_redraw();
+                        } else {
+                            self.tool_hovers[idx] = target;
+                        }
+
+                        if self.tool_presses[idx] > 0.0 {
+                            self.tool_presses[idx] -= 0.1;
+                            if self.tool_presses[idx] < 0.0 { self.tool_presses[idx] = 0.0; }
+                            window.request_redraw();
+                        }
+                        }
+                        }
+                        }
+
             if self.expanded || music_active || self.spring_w.velocity.abs() > 0.01 || self.spring_h.velocity.abs() > 0.01 {
                 window.request_redraw();
             }
@@ -372,3 +419,4 @@ impl ApplicationHandler for App {
         }
     }
 }
+

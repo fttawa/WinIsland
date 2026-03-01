@@ -1,4 +1,4 @@
-﻿use crate::core::config::AppConfig;
+use crate::core::config::AppConfig;
 use std::fs;
 use std::path::PathBuf;
 pub fn get_config_path() -> PathBuf {
@@ -27,3 +27,4 @@ pub fn save_config(config: &AppConfig) {
         let _ = fs::write(path, content);
     }
 }
+

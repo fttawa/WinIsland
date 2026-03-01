@@ -1,4 +1,4 @@
-﻿use crate::core::config::AppConfig;
+use crate::core::config::AppConfig;
 use crate::core::persistence::save_config;
 use crate::utils::color::*;
 use skia_safe::{surfaces, Color, Font, FontMgr, FontStyle, Paint, Rect};
@@ -239,3 +239,4 @@ pub fn run_music_settings(config: AppConfig) {
     let mut app = MusicApp::new(config);
     el.run_app(&mut app).unwrap();
 }
+

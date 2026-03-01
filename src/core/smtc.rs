@@ -1,4 +1,4 @@
-﻿use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::Media::Control::{
     GlobalSystemMediaTransportControlsSessionManager,
@@ -91,3 +91,4 @@ impl SmtcListener {
         Ok(())
     }
 }
+
