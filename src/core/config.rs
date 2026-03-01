@@ -1,13 +1,10 @@
 use serde::{Deserialize, Serialize};
-
 pub const APP_VERSION: &str = "1.0.0";
 pub const APP_AUTHOR: &str = "Eatgrapes";
 pub const APP_HOMEPAGE: &str = "https://github.com/Eatgrapes/WinIsland";
-
 pub const WINDOW_TITLE: &str = "WinIsland";
 pub const TOP_OFFSET: i32 = 10;
 pub const PADDING: f32 = 80.0;
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct AppConfig {
     pub global_scale: f32,
@@ -20,7 +17,6 @@ pub struct AppConfig {
     pub smtc_enabled: bool,
     pub smtc_apps: Vec<String>,
 }
-
 impl Default for AppConfig {
     fn default() -> Self {
         Self {

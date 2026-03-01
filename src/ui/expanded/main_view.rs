@@ -1,4 +1,4 @@
-use skia_safe::{
+﻿use skia_safe::{
     Canvas, Paint, Color, Font, FontStyle, FontMgr, Rect, RRect,
     PathBuilder, Point, Data, Image, SamplingOptions, FilterMode, MipmapMode, Typeface,
     gradient_shader, TileMode
@@ -7,7 +7,6 @@ use crate::icons::arrows::draw_arrow_right;
 use crate::core::smtc::MediaInfo;
 use std::cell::RefCell;
 use std::collections::HashMap;
-
 thread_local! {
     static IMG_CACHE: RefCell<Option<(String, Image)>> = RefCell::new(None);
     static FONT_MGR: FontMgr = FontMgr::new();
@@ -16,14 +15,12 @@ thread_local! {
     static COLOR_CACHE: RefCell<HashMap<String, Vec<Color>>> = RefCell::new(HashMap::new());
     static VIZ_HEIGHTS: RefCell<[f32; 6]> = RefCell::new([3.0; 6]);
 }
-
 fn style_to_key(style: FontStyle) -> u32 {
-    let weight = *style.weight() as u32; 
-    let width = *style.width() as u32;  
-    let slant = style.slant() as u32;    
+    let weight = *style.weight() as u32;
+    let width = *style.width() as u32;
+    let slant = style.slant() as u32;
     (weight << 16) | (width << 8) | slant
 }
-
 fn get_typeface_for_char(c: char, style: FontStyle) -> Typeface {
     let s_key = style_to_key(style);
     FALLBACK_CACHE.with(|cache| {
@@ -35,7 +32,6 @@ fn get_typeface_for_char(c: char, style: FontStyle) -> Typeface {
         tf
     })
 }
-
 fn draw_text_cached(canvas: &Canvas, text: &str, pos: (f32, f32), size: f32, style: FontStyle, paint: &Paint, align_center: bool, max_w: f32) {
     let cache_key = format!("{}-{}-{:?}-{}", text, max_w, style, size);
     TEXT_CACHE.with(|cache| {
@@ -85,127 +81,121 @@ fn draw_text_cached(canvas: &Canvas, text: &str, pos: (f32, f32), size: f32, sty
         }
     });
 }
-
-pub fn draw_main_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: u8, media: &MediaInfo) {
-    draw_arrow_right(canvas, ox + w - 12.0, oy + h / 2.0, alpha);
-
-    if media.title.is_empty() {
-        let mut paint = Paint::default();
-        paint.set_anti_alias(true);
-        paint.set_color(Color::from_argb((alpha as f32 * 0.5) as u8, 255, 255, 255));
-        draw_text_cached(canvas, "No Media Playing", (ox + w / 2.0, oy + h / 2.0), 13.0, FontStyle::normal(), &paint, true, w);
-        return;
-    }
-
-    let img_size = 72.0;
-    let img_x = ox + 24.0;
-    let img_y = oy + 24.0;
-
+pub fn get_cached_media_image(media: &MediaInfo) -> Option<Image> {
+    if media.title.is_empty() { return None; }
     let cache_key = format!("{}-{}", media.title, media.album);
-    let mut image_to_draw = None;
-
+    let mut result = None;
     IMG_CACHE.with(|cache| {
         let mut cache_mut = cache.borrow_mut();
         if let Some((key, img)) = cache_mut.as_ref() {
-            if key == &cache_key { image_to_draw = Some(img.clone()); return; }
+            if key == &cache_key {
+                result = Some(img.clone());
+                return;
+            }
         }
         if let Some(ref bytes_arc) = media.thumbnail {
             let data = Data::new_copy(&**bytes_arc);
             if let Some(image) = Image::from_encoded(data) {
                 *cache_mut = Some((cache_key.clone(), image.clone()));
-                image_to_draw = Some(image);
+                result = Some(image);
             }
         }
     });
-
+    result
+}
+pub fn get_media_palette(media: &MediaInfo) -> Vec<Color> {
+    if let Some(img) = get_cached_media_image(media) {
+        let cache_key = format!("{}-{}", media.title, media.album);
+        get_palette_from_image(&img, &cache_key)
+    } else {
+        vec![Color::from_rgb(180, 180, 180), Color::from_rgb(100, 100, 100)]
+    }
+}
+pub fn draw_main_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: u8, media: &MediaInfo, music_active: bool, view_offset: f32, scale: f32) {
+    let arrow_alpha = (alpha as f32 * (1.0 - view_offset * 5.0).clamp(0.0, 1.0)) as u8;
+    if arrow_alpha > 0 {
+        draw_arrow_right(canvas, ox + w - 12.0 * scale, oy + h / 2.0, arrow_alpha, scale);
+    }
+    let img_size = 72.0 * scale;
+    let img_x = ox + 24.0 * scale;
+    let img_y = oy + 24.0 * scale;
+    let image_to_draw = if music_active { get_cached_media_image(media) } else { None };
+    let cache_key = if music_active { format!("{}-{}", media.title, media.album) } else { "none".to_string() };
     let palette = if let Some(ref img) = image_to_draw {
         get_palette_from_image(img, &cache_key)
     } else {
         vec![Color::from_rgb(180, 180, 180), Color::from_rgb(100, 100, 100)]
     };
-
     canvas.save();
-    canvas.clip_rrect(RRect::new_rect_xy(Rect::from_xywh(img_x, img_y, img_size, img_size), 14.0, 14.0), skia_safe::ClipOp::Intersect, true);
+    canvas.clip_rrect(RRect::new_rect_xy(Rect::from_xywh(img_x, img_y, img_size, img_size), 14.0 * scale, 14.0 * scale), skia_safe::ClipOp::Intersect, true);
     if let Some(img) = image_to_draw {
         let mut img_paint = Paint::default();
         img_paint.set_anti_alias(true);
         img_paint.set_alpha_f(alpha as f32 / 255.0);
         canvas.draw_image_rect_with_sampling_options(
-            img, None, Rect::from_xywh(img_x, img_y, img_size, img_size),
+            &img, None, Rect::from_xywh(img_x, img_y, img_size, img_size),
             SamplingOptions::new(FilterMode::Linear, MipmapMode::Linear), &img_paint
         );
     } else {
-        draw_placeholder(canvas, img_x, img_y, img_size, alpha);
+        draw_placeholder(canvas, img_x, img_y, img_size, alpha, scale);
     }
     canvas.restore();
-
-    let text_x = img_x + img_size + 16.0;
-    let max_text_w = w - (text_x - ox) - 100.0;
-    let title_y = img_y + 26.0;
-
+    let text_x = img_x + img_size + 16.0 * scale;
+    let max_text_w = w - (text_x - ox) - 100.0 * scale;
+    let title_y = img_y + 26.0 * scale;
     let mut text_paint = Paint::default();
     text_paint.set_anti_alias(true);
-    
+    let title = if !music_active || media.title.is_empty() { "No Music playing" } else { &media.title };
+    let artist = if !music_active || media.artist.is_empty() { "Unknown Artist" } else { &media.artist };
     text_paint.set_color(Color::from_argb(alpha, 255, 255, 255));
-    draw_text_cached(canvas, &media.title, (text_x, title_y), 15.0, FontStyle::bold(), &text_paint, false, max_text_w);
-
+    draw_text_cached(canvas, title, (text_x, title_y), 15.0 * scale, FontStyle::bold(), &text_paint, false, max_text_w);
     text_paint.set_color(Color::from_argb((alpha as f32 * 0.6) as u8, 255, 255, 255));
-    draw_text_cached(canvas, &media.artist, (text_x, title_y + 22.0), 15.0, FontStyle::normal(), &text_paint, false, max_text_w);
-
-    draw_visualizer(canvas, ox + w - 45.0, title_y - 4.0, alpha, media.is_playing, &palette, &media.spectrum);
+    draw_text_cached(canvas, artist, (text_x, title_y + 22.0 * scale), 15.0 * scale, FontStyle::normal(), &text_paint, false, max_text_w);
+    draw_visualizer(canvas, ox + w - 45.0 * scale, title_y - 4.0 * scale, alpha, music_active && media.is_playing, &palette, &media.spectrum, scale, scale);
 }
-
-fn draw_visualizer(canvas: &Canvas, x: f32, y: f32, alpha: u8, is_playing: bool, palette: &[Color], spectrum: &[f32; 6]) {
+pub fn draw_visualizer(canvas: &Canvas, x: f32, y: f32, alpha: u8, is_playing: bool, palette: &[Color], spectrum: &[f32; 6], w_scale: f32, h_scale: f32) {
     let bar_count = 6;
-    let bar_w = 3.0;
-    let spacing = 2.0;
-    let max_h = 28.0;
-
+    let bar_w = 3.0 * w_scale;
+    let spacing = 2.0 * w_scale;
+    let max_h = 28.0 * h_scale;
     VIZ_HEIGHTS.with(|h_cell| {
         let mut heights = h_cell.borrow_mut();
-        
         for i in 0..bar_count {
-            let target = if is_playing { (spectrum[i] * max_h).max(3.0) } else { 3.0 };
-            
+            let target = if is_playing { (spectrum[i] * max_h).max(3.0 * h_scale) } else { 3.0 * h_scale };
             if target > heights[i] {
                 heights[i] = heights[i] * 0.5 + target * 0.5;
             } else {
                 heights[i] = heights[i] * 0.92 + target * 0.08;
             }
-            heights[i] = heights[i].max(3.0);
+            heights[i] = heights[i].max(3.0 * h_scale);
         }
-
         let start_x = x - (bar_count as f32 * (bar_w + spacing)) / 2.0;
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
-        
         let colors_with_alpha: Vec<Color> = palette.iter()
             .map(|c| Color::from_argb(alpha, c.r(), c.g(), c.b()))
             .collect();
-
         if colors_with_alpha.len() >= 2 {
             let shader = gradient_shader::linear(
-                (Point::new(start_x, y - max_h/2.0), Point::new(start_x + 20.0, y + max_h/2.0)),
+                (Point::new(start_x, y - max_h/2.0), Point::new(start_x + (20.0 * w_scale), y + max_h/2.0)),
                 colors_with_alpha.as_slice(), None, TileMode::Mirror, None, None
             ).unwrap();
             paint.set_shader(shader);
         } else {
             paint.set_color(colors_with_alpha.get(0).cloned().unwrap_or(Color::WHITE));
         }
-
         for i in 0..bar_count {
             let h = heights[i];
             let rect = Rect::from_xywh(start_x + i as f32 * (bar_w + spacing), y - h / 2.0, bar_w, h);
-            canvas.draw_round_rect(rect, 1.5, 1.5, &paint);
+            let r = bar_w / 2.0;
+            canvas.draw_round_rect(rect, r, r, &paint);
         }
     });
 }
-
 fn get_palette_from_image(img: &Image, cache_key: &str) -> Vec<Color> {
     COLOR_CACHE.with(|cache| {
         let mut cache_mut = cache.borrow_mut();
         if let Some(palette) = cache_mut.get(cache_key) { return palette.clone(); }
-        
         let mut palette = Vec::new();
         let info = skia_safe::ImageInfo::new(
             skia_safe::ISize::new(img.width(), img.height()),
@@ -221,7 +211,6 @@ fn get_palette_from_image(img: &Image, cache_key: &str) -> Vec<Color> {
             let mut g_total = 0u32;
             let mut b_total = 0u32;
             let mut count = 0u32;
-
             for y in 1..4 {
                 for x in 1..4 {
                     let idx = ((y * step_y * img.width() + x * step_x) * 4) as usize;
@@ -233,50 +222,44 @@ fn get_palette_from_image(img: &Image, cache_key: &str) -> Vec<Color> {
                     }
                 }
             }
-
             if count > 0 {
                 let r_avg = (r_total / count) as f32;
                 let g_avg = (g_total / count) as f32;
                 let b_avg = (b_total / count) as f32;
-                
                 let brighten = |val: f32| -> u8 {
                     let v = val * 1.5;
                     (if v < 60.0 { v + 60.0 } else { v }).min(255.0) as u8
                 };
-
                 let primary = Color::from_rgb(brighten(r_avg), brighten(g_avg), brighten(b_avg));
                 let secondary = Color::from_rgb(
-                    brighten(r_avg * 0.7), 
-                    brighten(g_avg * 0.8), 
+                    brighten(r_avg * 0.7),
+                    brighten(g_avg * 0.8),
                     brighten(b_avg * 1.2)
                 );
-                
                 palette.push(primary);
                 palette.push(secondary);
                 palette.push(primary);
             }
         }
-        
         if palette.is_empty() { palette.push(Color::from_rgb(200, 200, 200)); }
         cache_mut.insert(cache_key.to_string(), palette.clone());
         palette
     })
 }
-
-fn draw_placeholder(canvas: &Canvas, x: f32, y: f32, size: f32, alpha: u8) {
+fn draw_placeholder(canvas: &Canvas, x: f32, y: f32, size: f32, alpha: u8, scale: f32) {
     let mut paint = Paint::default();
     paint.set_anti_alias(true);
     paint.set_color(Color::from_argb((alpha as f32 * 0.1) as u8, 255, 255, 255));
-    canvas.draw_round_rect(Rect::from_xywh(x, y, size, size), 12.0, 12.0, &paint);
+    canvas.draw_round_rect(Rect::from_xywh(x, y, size, size), 14.0 * scale, 14.0 * scale, &paint);
     let cx = x + size/2.0; let cy = y + size/2.0;
     paint.set_color(Color::from_argb((alpha as f32 * 0.4) as u8, 255, 255, 255));
     let mut builder = PathBuilder::new();
-    builder.move_to(Point::new(cx - 5.0, cy + 8.0));
-    builder.line_to(Point::new(cx - 5.0, cy - 10.0));
-    builder.line_to(Point::new(cx + 6.0, cy - 13.0));
-    builder.line_to(Point::new(cx + 6.0, cy + 5.0));
+    builder.move_to(Point::new(cx - 5.0 * scale, cy + 8.0 * scale));
+    builder.line_to(Point::new(cx - 5.0 * scale, cy - 10.0 * scale));
+    builder.line_to(Point::new(cx + 6.0 * scale, cy - 13.0 * scale));
+    builder.line_to(Point::new(cx + 6.0 * scale, cy + 5.0 * scale));
     builder.close();
     canvas.draw_path(&builder.detach(), &paint);
-    canvas.draw_circle(Point::new(cx - 9.0, cy + 8.0), 4.0, &paint);
-    canvas.draw_circle(Point::new(cx + 2.0, cy + 5.0), 4.0, &paint);
+    canvas.draw_circle(Point::new(cx - 9.0 * scale, cy + 8.0 * scale), 4.0 * scale, &paint);
+    canvas.draw_circle(Point::new(cx + 2.0 * scale, cy + 5.0 * scale), 4.0 * scale, &paint);
 }

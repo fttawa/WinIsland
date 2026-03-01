@@ -1,4 +1,4 @@
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+﻿use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use realfft::RealFftPlanner;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -10,13 +10,11 @@ use windows::Win32::Media::Audio::{
 use windows::Win32::System::Com::{CoInitializeEx, CoCreateInstance, COINIT_MULTITHREADED, CLSCTX_ALL};
 use windows::Win32::Foundation::{S_OK};
 use windows::core::{Interface};
-
 pub struct AudioProcessor {
     spectrum: Arc<Mutex<[f32; 6]>>,
     active: Arc<AtomicBool>,
     gate: Arc<AtomicU32>, 
 }
-
 impl AudioProcessor {
     pub fn new() -> Self {
         let spectrum = Arc::new(Mutex::new([0.0f32; 6]));
@@ -27,11 +25,9 @@ impl AudioProcessor {
         processor.start_meter_thread();
         processor
     }
-
     pub fn get_spectrum(&self) -> [f32; 6] {
         *self.spectrum.lock().unwrap()
     }
-
     fn start_meter_thread(&self) {
         let active_clone = self.active.clone();
         let gate_clone = self.gate.clone();
@@ -69,12 +65,10 @@ impl AudioProcessor {
             }
         });
     }
-
     fn start_capture(&self) {
         let spectrum_arc = self.spectrum.clone();
         let active_clone = self.active.clone();
         let gate_clone = self.gate.clone();
-
         std::thread::spawn(move || {
             let host = cpal::default_host();
             let device = host.default_output_device().expect("No output device");
@@ -85,7 +79,6 @@ impl AudioProcessor {
             let mut output = fft.make_output_vec();
             let mut pcm_buffer = Vec::with_capacity(fft_len);
             let mut adaptive_max = [0.1f32; 6];
-
             let stream = device.build_input_stream(
                 &config.into(),
                 move |data: &[f32], _: &_| {
@@ -95,19 +88,15 @@ impl AudioProcessor {
                             let mut indata = pcm_buffer[..fft_len].to_vec();
                             let _ = fft.process(&mut indata, &mut output);
                             let gate = f32::from_bits(gate_clone.load(Ordering::Relaxed));
-                            
                             let mut raw_bins = [0.0f32; 6];
                             let ranges = [(2,8), (8,20), (20,50), (50,120), (120,280), (280,511)];
-                            
                             for (j, (start, end)) in ranges.iter().enumerate() {
                                 let mut sum = 0.0f32;
                                 for k in *start..*end { sum += output[k].norm(); }
                                 let avg = sum / (*end - *start) as f32;
                                 adaptive_max[j] = adaptive_max[j] * 0.995 + avg.max(0.01) * 0.005;
-                                
                                 raw_bins[j] = (avg / (adaptive_max[j] * 2.3) * gate).clamp(0.0, 1.0);
                             }
-                            
                             let mut final_bins = [0.0f32; 6];
                             final_bins[0] = raw_bins[5] * 0.8; 
                             final_bins[1] = raw_bins[3] * 0.9; 
@@ -115,7 +104,6 @@ impl AudioProcessor {
                             final_bins[3] = raw_bins[1] * 1.0; 
                             final_bins[4] = raw_bins[2] * 0.9; 
                             final_bins[5] = raw_bins[4] * 0.8;
-                            
                             if let Ok(mut s) = spectrum_arc.lock() { *s = final_bins; }
                             pcm_buffer.clear();
                         }
@@ -124,7 +112,6 @@ impl AudioProcessor {
                 |err| eprintln!("Audio error: {}", err),
                 None
             );
-
             if let Ok(s) = stream {
                 let _ = s.play();
                 while active_clone.load(Ordering::Relaxed) { std::thread::sleep(std::time::Duration::from_millis(100)); }

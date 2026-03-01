@@ -1,11 +1,9 @@
-#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
-
+﻿#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod core;
 mod window;
 mod utils;
 mod icons;
 mod ui;
-
 use crate::window::app::App;
 use std::env;
 use windows::core::w;
@@ -13,10 +11,8 @@ use windows::Win32::Foundation::GetLastError;
 use windows::Win32::Foundation::ERROR_ALREADY_EXISTS;
 use windows::Win32::System::Threading::CreateMutexW;
 use winit::event_loop::EventLoop;
-
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
     if args.iter().any(|arg| arg == "--settings") {
         let config = crate::core::persistence::load_config();
         crate::window::settings::run_settings(config);
@@ -30,7 +26,6 @@ fn main() {
                 return;
             }
         }
-
         let event_loop = EventLoop::new().unwrap();
         let mut app = App::default();
         event_loop.run_app(&mut app).unwrap();
