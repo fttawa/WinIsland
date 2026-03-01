@@ -12,7 +12,7 @@ use crate::core::persistence::load_config;
 use crate::core::render::draw_island;
 use crate::utils::blur::calculate_blur_sigmas;
 use crate::utils::color::get_island_border_weights;
-use crate::utils::mouse::{get_global_cursor_pos, is_point_in_rect};
+use crate::utils::mouse::{get_global_cursor_pos, is_point_in_rect, is_left_button_pressed};
 use crate::utils::physics::Spring;
 use crate::core::smtc::SmtcListener;
 use crate::core::audio::AudioProcessor;
@@ -203,6 +203,12 @@ impl ApplicationHandler for App {
                                 self.spring_h.velocity *= 0.2;
                                 self.spring_r.velocity *= 0.2;
                             }
+                        } else if self.expanded {
+                            self.expanded = false;
+                            self.tools_view = false;
+                            self.spring_w.velocity *= 0.2;
+                            self.spring_h.velocity *= 0.2;
+                            self.spring_r.velocity *= 0.2;
                         }
                     }
                     WindowEvent::RedrawRequested => {
@@ -329,6 +335,16 @@ impl ApplicationHandler for App {
                 self.spring_h.value as f64,
             );
             let _ = window.set_cursor_hittest(is_hovering);
+
+            if self.expanded && !is_hovering && is_left_button_pressed() {
+                self.expanded = false;
+                self.tools_view = false;
+                self.spring_w.velocity *= 0.2;
+                self.spring_h.velocity *= 0.2;
+                self.spring_r.velocity *= 0.2;
+                window.request_redraw();
+            }
+
             if self.config.adaptive_border {
                 if self.frame_count % 30 == 0 {
                     let island_cx = self.win_x + (self.os_w as i32 / 2);

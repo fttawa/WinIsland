@@ -115,7 +115,7 @@ pub fn draw_island(
             &media.spectrum,
             0.55 * global_scale,
             0.45 * global_scale,
-            (0.3, 0.05)
+            (0.6, 0.08)
         );
 
         if !current_lyric.is_empty() || !old_lyric.is_empty() {
