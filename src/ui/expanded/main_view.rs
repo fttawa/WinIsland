@@ -21,11 +21,28 @@ fn style_to_key(style: FontStyle) -> u32 {
     let slant = style.slant() as u32;
     (weight << 16) | (width << 8) | slant
 }
+use crate::core::persistence::load_config;
+
 fn get_typeface_for_char(c: char, style: FontStyle) -> Typeface {
     let s_key = style_to_key(style);
     FALLBACK_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
         if let Some(tf) = cache.get(&(c, s_key)) { return tf.clone(); }
+        
+        let config = load_config();
+        if let Some(path) = &config.custom_font_path {
+            if let Ok(data) = std::fs::read(path) {
+                if let Some(tf) = FONT_MGR.with(|mgr| mgr.new_from_data(&data, None)) {
+                    let mut glyphs = [0u16; 1];
+                    tf.unichars_to_glyphs(&[c as i32], &mut glyphs);
+                    if glyphs[0] != 0 {
+                        cache.insert((c, s_key), tf.clone());
+                        return tf;
+                    }
+                }
+            }
+        }
+
         let tf = FONT_MGR.with(|mgr| mgr.match_family_style_character("", style, &["zh-CN", "ja-JP", "en-US"], c as i32))
             .unwrap_or_else(|| FONT_MGR.with(|mgr| mgr.legacy_make_typeface(None, style).unwrap()));
         cache.insert((c, s_key), tf.clone());

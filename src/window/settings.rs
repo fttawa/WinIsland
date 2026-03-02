@@ -44,6 +44,13 @@ impl SettingsApp {
     }
     fn get_font(&self, size: f32, bold: bool) -> Font {
         let style = if bold { FontStyle::bold() } else { FontStyle::normal() };
+        if let Some(path) = &self.config.custom_font_path {
+            if let Ok(data) = std::fs::read(path) {
+                if let Some(tf) = self.font_mgr.new_from_data(&data, None) {
+                    return Font::from_typeface(tf, size);
+                }
+            }
+        }
         let typeface = self.font_mgr.match_family_style("Segoe UI", style)
             .unwrap_or_else(|| self.font_mgr.legacy_make_typeface(None, style).unwrap());
         Font::from_typeface(typeface, size)
@@ -130,10 +137,41 @@ impl SettingsApp {
         paint.set_color(COLOR_TEXT_PRI);
         canvas.draw_str("Motion Blur", (35.0, sw_blur_y + 21.0), &font, &paint);
         self.draw_switch(canvas, 326.0, sw_blur_y + 3.0, self.blur_switch_pos);
+        
+        let font_y = sw_blur_y + 50.0;
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, font_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        canvas.draw_str("Custom Font", (35.0, font_y + 21.0), &font, &paint);
+        self.draw_text_button(canvas, 310.0, font_y + 3.0, 65.0, 26.0, "Select");
+        if self.config.custom_font_path.is_some() {
+            self.draw_text_button_danger(canvas, 235.0, font_y + 3.0, 65.0, 26.0, "Reset");
+        }
+
         paint.set_color(COLOR_DANGER);
         let reset_str = "Reset to Defaults";
         let (_, rect) = font.measure_str(reset_str, None);
         canvas.draw_str(reset_str, ((SETTINGS_W - rect.width()) / 2.0, SETTINGS_H - 40.0), &font, &paint);
+    }
+    fn draw_text_button_danger(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, w: f32, h: f32, label: &str) {
+        let mut paint = Paint::default();
+        paint.set_anti_alias(true);
+        paint.set_color(COLOR_CARD_HIGHLIGHT);
+        canvas.draw_round_rect(Rect::from_xywh(x, y, w, h), h/2.0, h/2.0, &paint);
+        let font = self.get_font(12.0, true);
+        paint.set_color(COLOR_DANGER);
+        let (_, rect) = font.measure_str(label, None);
+        canvas.draw_str(label, (x + (w - rect.width()) / 2.0, y + 17.0), &font, &paint);
+    }
+    fn draw_text_button(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, w: f32, h: f32, label: &str) {
+        let mut paint = Paint::default();
+        paint.set_anti_alias(true);
+        paint.set_color(COLOR_CARD_HIGHLIGHT);
+        canvas.draw_round_rect(Rect::from_xywh(x, y, w, h), h/2.0, h/2.0, &paint);
+        let font = self.get_font(12.0, true);
+        paint.set_color(COLOR_TEXT_PRI);
+        let (_, rect) = font.measure_str(label, None);
+        canvas.draw_str(label, (x + (w - rect.width()) / 2.0, y + 17.0), &font, &paint);
     }
     fn draw_button(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, label: &str) {
         let mut paint = Paint::default();
@@ -204,6 +242,18 @@ impl SettingsApp {
             }
             if mx >= 320.0 && mx <= 380.0 && my >= sy + 300.0 && my <= sy + 340.0 {
                 self.config.motion_blur = !self.config.motion_blur;
+                changed = true;
+            }
+            if mx >= 310.0 && mx <= 375.0 && my >= sy + 353.0 && my <= sy + 379.0 {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Fonts", &["ttf", "otf"])
+                    .pick_file() {
+                    self.config.custom_font_path = Some(path.to_string_lossy().into_owned());
+                    changed = true;
+                }
+            }
+            if self.config.custom_font_path.is_some() && mx >= 235.0 && mx <= 300.0 && my >= sy + 353.0 && my <= sy + 379.0 {
+                self.config.custom_font_path = None;
                 changed = true;
             }
             if my >= SETTINGS_H - 60.0 && my <= SETTINGS_H - 20.0 && mx >= cx - 100.0 && mx <= cx + 100.0 {

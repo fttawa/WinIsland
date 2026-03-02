@@ -18,10 +18,16 @@ pub struct AppConfig {
     pub smtc_apps: Vec<String>,
     #[serde(default = "default_show_lyrics")]
     pub show_lyrics: bool,
+    #[serde(default = "default_custom_font")]
+    pub custom_font_path: Option<String>,
 }
 
 fn default_show_lyrics() -> bool {
     true
+}
+
+fn default_custom_font() -> Option<String> {
+    None
 }
 
 impl Default for AppConfig {
@@ -37,6 +43,7 @@ impl Default for AppConfig {
             smtc_enabled: true,
             smtc_apps: Vec::new(),
             show_lyrics: true,
+            custom_font_path: None,
         }
     }
 }

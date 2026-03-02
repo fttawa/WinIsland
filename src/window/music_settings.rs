@@ -44,6 +44,13 @@ impl MusicApp {
     }
     fn get_font(&self, size: f32, bold: bool) -> Font {
         let style = if bold { FontStyle::bold() } else { FontStyle::normal() };
+        if let Some(path) = &self.config.custom_font_path {
+            if let Ok(data) = std::fs::read(path) {
+                if let Some(tf) = self.font_mgr.new_from_data(&data, None) {
+                    return Font::from_typeface(tf, size);
+                }
+            }
+        }
         let typeface = self.font_mgr.match_family_style("Segoe UI", style)
             .unwrap_or_else(|| self.font_mgr.legacy_make_typeface(None, style).unwrap());
         Font::from_typeface(typeface, size)

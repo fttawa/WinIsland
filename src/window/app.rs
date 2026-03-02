@@ -87,7 +87,8 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         event_loop.set_control_flow(ControlFlow::Poll);
         if self.window.is_none() {
-            self.os_w = (self.config.expanded_width * self.config.global_scale + PADDING) as u32;
+            let max_w = self.config.expanded_width.max(450.0);
+            self.os_w = (max_w * self.config.global_scale + PADDING) as u32;
             self.os_h = (self.config.expanded_height * self.config.global_scale + PADDING) as u32;
             let attrs = Window::default_attributes()
                 .with_title(WINDOW_TITLE)
@@ -296,7 +297,8 @@ impl ApplicationHandler for App {
             if current_config != self.config {
                 let old_scale = self.config.global_scale;
                 self.config = current_config;
-                let new_os_w = (self.config.expanded_width * self.config.global_scale + PADDING) as u32;
+                let max_w = self.config.expanded_width.max(450.0);
+                let new_os_w = (max_w * self.config.global_scale + PADDING) as u32;
                 let new_os_h = (self.config.expanded_height * self.config.global_scale + PADDING) as u32;
                 if new_os_w != self.os_w || new_os_h != self.os_h || old_scale != self.config.global_scale {
                     self.os_w = new_os_w;

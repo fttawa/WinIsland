@@ -7,34 +7,84 @@ export default defineConfig({
   head: [
     ['link', { rel: 'icon', href: '/WinIsland/icon.png' }]
   ],
-  themeConfig: {
-    nav: [
-      { text: 'Home', link: '/' },
-      { text: 'Guide', link: '/guide' },
-      { text: 'Download', link: '/download' }
-    ],
-    sidebar: [
-      {
-        text: 'Guide',
-        items: [
-          { text: 'What is WinIsland?', link: '/guide' },
-          { text: 'Getting Started', link: '/getting-started' }
-        ]
-      },
-      {
-        text: 'Download',
-        items: [
-          { text: 'Latest Nightly', link: '/download' }
-        ]
+  locales: {
+    root: {
+      label: 'English',
+      lang: 'en',
+      themeConfig: {
+        nav: [
+          { text: 'Home', link: '/' },
+          { text: 'Guide', link: '/guide' },
+          { text: 'Download', link: '/download' }
+        ],
+        sidebar: [
+          {
+            text: 'Guide',
+            items: [
+              { text: 'What is WinIsland?', link: '/guide' },
+              { text: 'Getting Started', link: '/getting-started' }
+            ]
+          },
+          {
+            text: 'Download',
+            items: [
+              { text: 'Latest Nightly', link: '/download' }
+            ]
+          }
+        ],
+        footer: {
+          message: 'Released under the MIT License.',
+          copyright: 'Copyright © 2026-present WinIsland'
+        }
       }
-    ],
+    },
+    zh: {
+      label: '简体中文',
+      lang: 'zh',
+      link: '/zh/',
+      themeConfig: {
+        nav: [
+          { text: '首页', link: '/zh/' },
+          { text: '指南', link: '/zh/guide' },
+          { text: '下载', link: '/zh/download' }
+        ],
+        sidebar: [
+          {
+            text: '指南',
+            items: [
+              { text: '什么是 WinIsland？', link: '/zh/guide' },
+              { text: '快速开始', link: '/zh/getting-started' }
+            ]
+          },
+          {
+            text: '下载',
+            items: [
+              { text: '最新预览版', link: '/zh/download' }
+            ]
+          }
+        ],
+        footer: {
+          message: '基于 MIT 许可发布。',
+          copyright: '版权所有 © 2026-present WinIsland'
+        },
+        docFooter: {
+          prev: '上一页',
+          next: '下一页'
+        },
+        outline: {
+          label: '页面导航'
+        },
+        returnToTopLabel: '回到顶部',
+        sidebarMenuLabel: '菜单',
+        darkModeSwitchLabel: '主题',
+        lightModeSwitchTitle: '切换到浅色模式',
+        darkModeSwitchTitle: '切换到深色模式'
+      }
+    }
+  },
+  themeConfig: {
     socialLinks: [
       { icon: 'github', link: 'https://github.com/Eatgrapes/WinIsland' }
-    ],
-    footer: {
-      message: 'Released under the MIT License.',
-      copyright: 'Copyright �?2026-present WinIsland'
-    }
+    ]
   }
 })
-
