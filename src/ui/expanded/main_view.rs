@@ -155,7 +155,7 @@ pub fn get_media_palette(media: &MediaInfo) -> Vec<Color> {
     }
 }
 
-pub fn draw_main_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: u8, media: &MediaInfo, music_active: bool, view_offset: f32, scale: f32) {
+pub fn draw_main_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: u8, media: &MediaInfo, music_active: bool, view_offset: f32, scale: f32, expansion_progress: f32, viz_h_scale: f32) {
     let arrow_alpha = (alpha as f32 * (1.0 - view_offset * 5.0).clamp(0.0, 1.0)) as u8;
     if arrow_alpha > 0 {
         draw_arrow_right(canvas, ox + w - 12.0 * scale, oy + h / 2.0, arrow_alpha, scale);
@@ -195,7 +195,9 @@ pub fn draw_main_page(canvas: &Canvas, ox: f32, oy: f32, w: f32, h: f32, alpha: 
     draw_text_cached(canvas, title, (text_x, title_y), 15.0 * scale, FontStyle::bold(), &text_paint, false, max_text_w);
     text_paint.set_color(Color::from_argb((alpha as f32 * 0.6) as u8, 255, 255, 255));
     draw_text_cached(canvas, artist, (text_x, title_y + 22.0 * scale), 15.0 * scale, FontStyle::normal(), &text_paint, false, max_text_w);
-    draw_visualizer(canvas, ox + w - 45.0 * scale, title_y - 4.0 * scale, alpha, music_active && media.is_playing, &palette, &media.spectrum, scale, scale, (0.5, 0.08));
+    
+    let viz_x_offset = 17.0 + (45.0 - 17.0) * expansion_progress;
+    draw_visualizer(canvas, ox + w - viz_x_offset * scale, title_y - 4.0 * scale, alpha, music_active && media.is_playing, &palette, &media.spectrum, scale, viz_h_scale, (0.6, 0.08));
 }
 
 pub fn draw_visualizer(canvas: &Canvas, x: f32, y: f32, alpha: u8, is_playing: bool, palette: &[Color], spectrum: &[f32; 6], w_scale: f32, h_scale: f32, smooth_factors: (f32, f32)) {

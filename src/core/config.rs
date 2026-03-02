@@ -20,6 +20,12 @@ pub struct AppConfig {
     pub show_lyrics: bool,
     #[serde(default = "default_custom_font")]
     pub custom_font_path: Option<String>,
+    #[serde(default = "default_auto_start")]
+    pub auto_start: bool,
+    #[serde(default = "default_auto_hide")]
+    pub auto_hide: bool,
+    #[serde(default = "default_auto_hide_delay")]
+    pub auto_hide_delay: f32,
 }
 
 fn default_show_lyrics() -> bool {
@@ -28,6 +34,18 @@ fn default_show_lyrics() -> bool {
 
 fn default_custom_font() -> Option<String> {
     None
+}
+
+fn default_auto_start() -> bool {
+    false
+}
+
+fn default_auto_hide() -> bool {
+    false
+}
+
+fn default_auto_hide_delay() -> f32 {
+    5.0
 }
 
 impl Default for AppConfig {
@@ -44,6 +62,9 @@ impl Default for AppConfig {
             smtc_apps: Vec::new(),
             show_lyrics: true,
             custom_font_path: None,
+            auto_start: false,
+            auto_hide: false,
+            auto_hide_delay: 5.0,
         }
     }
 }

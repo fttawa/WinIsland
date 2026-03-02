@@ -6,7 +6,10 @@ use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::platform::windows::WindowAttributesExtWindows;
+use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window, WindowId, WindowLevel};
+use windows::Win32::Foundation::HWND;
+use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE};
 use crate::core::config::{AppConfig, PADDING, TOP_OFFSET, WINDOW_TITLE};
 use crate::core::persistence::load_config;
 use crate::core::render::draw_island;
@@ -47,6 +50,9 @@ pub struct App {
     current_lyric_text: String,
     old_lyric_text: String,
     lyric_transition: f32,
+    idle_timer: Instant,
+    spring_hide: Spring,
+    auto_hidden: bool,
 }
 impl Default for App {
     fn default() -> Self {
@@ -80,6 +86,29 @@ impl Default for App {
             current_lyric_text: String::new(),
             old_lyric_text: String::new(),
             lyric_transition: 1.0,
+            idle_timer: Instant::now(),
+            spring_hide: Spring::new(0.0),
+            auto_hidden: false,
+        }
+    }
+}
+impl App {
+    fn enforce_topmost(window: &Window) {
+        if let Ok(handle) = window.window_handle() {
+            if let RawWindowHandle::Win32(raw) = handle.as_raw() {
+                let hwnd = HWND(raw.hwnd.get() as *mut core::ffi::c_void);
+                unsafe {
+                    let _ = SetWindowPos(
+                        hwnd,
+                        HWND_TOPMOST,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                    );
+                }
+            }
         }
     }
 }
@@ -119,6 +148,7 @@ impl ApplicationHandler for App {
                 .unwrap();
             self.surface = Some(surface);
             self.tray = Some(TrayManager::new());
+            Self::enforce_topmost(&window);
             window.request_redraw();
         }
     }
@@ -138,6 +168,9 @@ impl ApplicationHandler for App {
                         let island_y = PADDING as f64 / 2.0;
                         let offset_x = (self.os_w as f64 - self.spring_w.value as f64) / 2.0;
                         let scale = self.config.global_scale as f64;
+                        if self.auto_hidden {
+                            return;
+                        }
                         if is_point_in_rect(
                             rel_x as f64,
                             rel_y as f64,
@@ -262,6 +295,7 @@ impl ApplicationHandler for App {
                                 &self.old_lyric_text,
                                 self.lyric_transition,
                                 self.config.motion_blur,
+                                self.spring_hide.value,
                             );
                         }
                     }
@@ -272,6 +306,7 @@ impl ApplicationHandler for App {
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(window) = &self.window {
+            Self::enforce_topmost(window);
             let frame_start = Instant::now();
             if let Some(tray) = &self.tray {
                 if let Ok(event) = tray_icon::menu::MenuEvent::receiver().try_recv() {
@@ -330,6 +365,11 @@ impl ApplicationHandler for App {
             let rel_y = py - self.win_y;
             let island_y = PADDING as f64 / 2.0;
             let offset_x = (self.os_w as f64 - self.spring_w.value as f64) / 2.0;
+            let hidden_peek_h = (5.0 * self.config.global_scale as f64).max(3.0);
+            let hide_distance =
+                (self.spring_h.value as f64 - hidden_peek_h + TOP_OFFSET as f64).max(0.0);
+            let hide_y_offset = self.spring_hide.value as f64 * hide_distance;
+            let current_island_y = island_y - hide_y_offset;
             let is_hovering = is_point_in_rect(
                 rel_x as f64,
                 rel_y as f64,
@@ -338,7 +378,76 @@ impl ApplicationHandler for App {
                 self.spring_w.value as f64,
                 self.spring_h.value as f64,
             );
-            let _ = window.set_cursor_hittest(is_hovering);
+            let is_hovering_visible = is_point_in_rect(
+                rel_x as f64,
+                rel_y as f64,
+                offset_x,
+                current_island_y,
+                self.spring_w.value as f64,
+                self.spring_h.value as f64,
+            );
+            let hidden_handle_h = (24.0 * self.config.global_scale as f64).max(14.0);
+            let hidden_handle_y =
+                (current_island_y + self.spring_h.value as f64 - hidden_peek_h - hidden_handle_h * 0.35).max(0.0);
+            let is_on_hidden_handle = self.auto_hidden && is_point_in_rect(
+                rel_x as f64,
+                rel_y as f64,
+                offset_x,
+                hidden_handle_y,
+                self.spring_w.value as f64,
+                hidden_handle_h,
+            );
+            let _ = window.set_cursor_hittest(is_hovering_visible || is_on_hidden_handle);
+
+            let mut music_active = false;
+            let media = self.smtc.get_info();
+            if self.config.smtc_enabled && !media.title.is_empty() {
+                self.last_media_playing = media.is_playing;
+                if self.last_media_playing {
+                    self.last_playing_time = Instant::now();
+                    music_active = true;
+                } else if self.last_playing_time.elapsed() < Duration::from_secs(5) {
+                    music_active = true;
+                }
+                if media.title != self.last_media_title {
+                    self.last_media_title = media.title.clone();
+                    window.request_redraw();
+                }
+            }
+
+            let is_idle = !is_hovering && !self.expanded && !music_active;
+            if !self.config.auto_hide {
+                self.auto_hidden = false;
+                self.idle_timer = Instant::now();
+            } else {
+                if music_active && self.auto_hidden {
+                    self.auto_hidden = false;
+                    self.idle_timer = Instant::now();
+                    self.spring_hide.velocity = -0.65;
+                } else if self.auto_hidden {
+                    if is_on_hidden_handle || is_hovering_visible {
+                        self.auto_hidden = false;
+                        self.idle_timer = Instant::now();
+                        self.spring_hide.velocity = -0.45;
+                    } else if !self.expanded && !music_active {
+                        self.idle_timer = Instant::now();
+                    }
+                } else if is_idle {
+                    if self.idle_timer.elapsed().as_secs_f32() > self.config.auto_hide_delay {
+                        self.auto_hidden = true;
+                    }
+                } else {
+                    self.idle_timer = Instant::now();
+                }
+            }
+
+            let hide_target = if self.auto_hidden { 1.0 } else { 0.0 };
+            let (stiffness, damping) = if self.auto_hidden { (0.12, 0.70) } else { (0.08, 0.78) };
+            self.spring_hide.update(hide_target, stiffness, damping);
+
+            if self.spring_hide.velocity.abs() > 0.001 || (self.spring_hide.value > 0.0 && self.spring_hide.value < 1.0) {
+                window.request_redraw();
+            }
 
             if self.expanded && !is_hovering && is_left_button_pressed() {
                 self.expanded = false;
@@ -347,6 +456,10 @@ impl ApplicationHandler for App {
                 self.spring_h.velocity *= 0.2;
                 self.spring_r.velocity *= 0.2;
                 window.request_redraw();
+            }
+
+            if !self.expanded && is_hovering && is_left_button_pressed() {
+                self.idle_timer = Instant::now();
             }
 
             if self.config.adaptive_border {

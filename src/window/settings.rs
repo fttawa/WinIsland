@@ -4,7 +4,6 @@ use crate::utils::color::*;
 use skia_safe::{surfaces, Color, Font, FontMgr, FontStyle, Paint, Rect};
 use softbuffer::{Context, Surface};
 use std::sync::Arc;
-use std::time::Duration;
 use windows::core::w;
 use windows::Win32::System::Threading::{OpenMutexW, MUTEX_ALL_ACCESS};
 use winit::application::ApplicationHandler;
@@ -15,41 +14,66 @@ use winit::window::{Window, WindowId};
 const SETTINGS_W: f32 = 400.0;
 const SETTINGS_H: f32 = 550.0;
 use crate::utils::icon::get_app_icon;
+use crate::utils::autostart::set_autostart;
+
 pub struct SettingsApp {
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
+    sk_surface: Option<skia_safe::Surface>,
     config: AppConfig,
     active_tab: usize,
     border_switch_pos: f32,
     blur_switch_pos: f32,
+    autostart_switch_pos: f32,
     logical_mouse_pos: (f32, f32),
     font_mgr: FontMgr,
+    custom_font_typeface: Option<skia_safe::Typeface>,
+    custom_font_path_cache: Option<String>,
     frame_count: u64,
+    scroll_y: f32,
+    target_scroll_y: f32,
 }
 impl SettingsApp {
     pub fn new(config: AppConfig) -> Self {
         let initial_border = if config.adaptive_border { 1.0 } else { 0.0 };
         let initial_blur = if config.motion_blur { 1.0 } else { 0.0 };
-        Self {
+        let initial_autostart = if config.auto_start { 1.0 } else { 0.0 };
+        let mut app = Self {
             window: None,
             surface: None,
+            sk_surface: None,
             config,
             active_tab: 0,
             border_switch_pos: initial_border,
             blur_switch_pos: initial_blur,
+            autostart_switch_pos: initial_autostart,
             logical_mouse_pos: (0.0, 0.0),
             font_mgr: FontMgr::new(),
+            custom_font_typeface: None,
+            custom_font_path_cache: None,
             frame_count: 0,
+            scroll_y: 0.0,
+            target_scroll_y: 0.0,
+        };
+        app.refresh_custom_font_cache();
+        app
+    }
+    fn refresh_custom_font_cache(&mut self) {
+        if self.custom_font_path_cache == self.config.custom_font_path {
+            return;
         }
+        self.custom_font_path_cache = self.config.custom_font_path.clone();
+        self.custom_font_typeface = self
+            .config
+            .custom_font_path
+            .as_ref()
+            .and_then(|path| std::fs::read(path).ok())
+            .and_then(|data| self.font_mgr.new_from_data(&data, None));
     }
     fn get_font(&self, size: f32, bold: bool) -> Font {
         let style = if bold { FontStyle::bold() } else { FontStyle::normal() };
-        if let Some(path) = &self.config.custom_font_path {
-            if let Ok(data) = std::fs::read(path) {
-                if let Some(tf) = self.font_mgr.new_from_data(&data, None) {
-                    return Font::from_typeface(tf, size);
-                }
-            }
+        if let Some(typeface) = &self.custom_font_typeface {
+            return Font::from_typeface(typeface.clone(), size);
         }
         let typeface = self.font_mgr.match_family_style("Segoe UI", style)
             .unwrap_or_else(|| self.font_mgr.legacy_make_typeface(None, style).unwrap());
@@ -61,16 +85,48 @@ impl SettingsApp {
         let p_w = (SETTINGS_W * scale) as i32;
         let p_h = (SETTINGS_H * scale) as i32;
         if p_w <= 0 || p_h <= 0 { return; }
-        let mut sk_surface = surfaces::raster_n32_premul(skia_safe::ISize::new(p_w, p_h)).unwrap();
+
+        let mut sk_surface = if let Some(ref s) = self.sk_surface {
+            if s.width() == p_w && s.height() == p_h {
+                s.clone()
+            } else {
+                let new_s = surfaces::raster_n32_premul(skia_safe::ISize::new(p_w, p_h)).unwrap();
+                self.sk_surface = Some(new_s.clone());
+                new_s
+            }
+        } else {
+            let new_s = surfaces::raster_n32_premul(skia_safe::ISize::new(p_w, p_h)).unwrap();
+            self.sk_surface = Some(new_s.clone());
+            new_s
+        };
+
         let canvas = sk_surface.canvas();
         canvas.clear(COLOR_BG);
         canvas.scale((scale, scale));
+        
         self.draw_tabs(canvas);
+
         if self.active_tab == 0 {
+            canvas.save();
+            canvas.clip_rect(Rect::from_xywh(0.0, 70.0, SETTINGS_W, SETTINGS_H - 70.0), skia_safe::ClipOp::Intersect, true);
+            canvas.translate((0.0, -self.scroll_y));
             self.draw_general(canvas);
+            canvas.restore();
+
+            let content_h = if self.config.auto_hide { 750.0 } else { 700.0 };
+            let view_h = SETTINGS_H - 70.0;
+            if content_h > view_h {
+                let bar_h = (view_h / content_h) * view_h;
+                let bar_y = 70.0 + (self.scroll_y / (content_h - view_h)) * (view_h - bar_h);
+                let mut p = Paint::default();
+                p.set_anti_alias(true);
+                p.set_color(Color::from_argb(80, 255, 255, 255));
+                canvas.draw_round_rect(Rect::from_xywh(SETTINGS_W - 6.0, bar_y, 4.0, bar_h), 2.0, 2.0, &p);
+            }
         } else {
             self.draw_about(canvas);
         }
+
         if let Some(surface) = self.surface.as_mut() {
             let mut buffer = surface.buffer_mut().unwrap();
             let info = skia_safe::ImageInfo::new(skia_safe::ISize::new(p_w, p_h), skia_safe::ColorType::BGRA8888, skia_safe::AlphaType::Premul, None);
@@ -148,10 +204,36 @@ impl SettingsApp {
             self.draw_text_button_danger(canvas, 235.0, font_y + 3.0, 65.0, 26.0, "Reset");
         }
 
+        let autostart_y = font_y + 50.0;
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, autostart_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        canvas.draw_str("Start at Boot", (35.0, autostart_y + 21.0), &font, &paint);
+        self.draw_switch(canvas, 326.0, autostart_y + 3.0, self.autostart_switch_pos);
+
+        let autohide_y = autostart_y + 50.0;
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, autohide_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        canvas.draw_str("Auto Hide", (35.0, autohide_y + 21.0), &font, &paint);
+        self.draw_switch(canvas, 326.0, autohide_y + 3.0, if self.config.auto_hide { 1.0 } else { 0.0 });
+
+        let delay_y = autohide_y + 50.0;
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, delay_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(if self.config.auto_hide { COLOR_TEXT_PRI } else { COLOR_TEXT_SEC });
+        canvas.draw_str("Hide Delay (s)", (35.0, delay_y + 21.0), &font, &paint);
+        let delay_str = format!("{:.0}", self.config.auto_hide_delay);
+        self.draw_button(canvas, 270.0, delay_y + 2.0, "-");
+        let (_, rect) = font.measure_str(&delay_str, None);
+        canvas.draw_str(&delay_str, (325.0 - rect.width() / 2.0, delay_y + 21.0), &font, &paint);
+        self.draw_button(canvas, 345.0, delay_y + 2.0, "+");
+
         paint.set_color(COLOR_DANGER);
         let reset_str = "Reset to Defaults";
         let (_, rect) = font.measure_str(reset_str, None);
-        canvas.draw_str(reset_str, ((SETTINGS_W - rect.width()) / 2.0, SETTINGS_H - 40.0), &font, &paint);
+        let reset_y = if self.config.auto_hide { 710.0 } else { 660.0 };
+        canvas.draw_str(reset_str, ((SETTINGS_W - rect.width()) / 2.0, reset_y), &font, &paint);
     }
     fn draw_text_button_danger(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, w: f32, h: f32, label: &str) {
         let mut paint = Paint::default();
@@ -218,6 +300,11 @@ impl SettingsApp {
     }
     fn handle_click(&mut self) {
         let (mx, my) = self.logical_mouse_pos;
+        let content_my = if self.active_tab == 0 && my >= 70.0 {
+            my + self.scroll_y
+        } else {
+            my
+        };
         let mut changed = false;
         let cx = SETTINGS_W / 2.0;
         if my >= 20.0 && my <= 56.0 {
@@ -226,47 +313,78 @@ impl SettingsApp {
         }
         if self.active_tab == 0 {
             let sy = 90.0;
-            self.check_btn(mx, my, 270.0, sy, |c| c.global_scale = (c.global_scale - 0.05).max(0.5), &mut changed);
-            self.check_btn(mx, my, 345.0, sy, |c| c.global_scale = (c.global_scale + 0.05).min(2.0), &mut changed);
-            self.check_btn(mx, my, 270.0, sy + 50.0, |c| c.base_width -= 5.0, &mut changed);
-            self.check_btn(mx, my, 345.0, sy + 50.0, |c| c.base_width += 5.0, &mut changed);
-            self.check_btn(mx, my, 270.0, sy + 100.0, |c| c.base_height -= 2.0, &mut changed);
-            self.check_btn(mx, my, 345.0, sy + 100.0, |c| c.base_height += 2.0, &mut changed);
-            self.check_btn(mx, my, 270.0, sy + 150.0, |c| c.expanded_width -= 10.0, &mut changed);
-            self.check_btn(mx, my, 345.0, sy + 150.0, |c| c.expanded_width += 10.0, &mut changed);
-            self.check_btn(mx, my, 270.0, sy + 200.0, |c| c.expanded_height -= 10.0, &mut changed);
-            self.check_btn(mx, my, 345.0, sy + 200.0, |c| c.expanded_height += 10.0, &mut changed);
-            if mx >= 320.0 && mx <= 380.0 && my >= sy + 250.0 && my <= sy + 290.0 {
+            self.check_btn(mx, content_my, 270.0, sy + 2.0, |c| c.global_scale = (c.global_scale - 0.05).max(0.5), &mut changed);
+            self.check_btn(mx, content_my, 345.0, sy + 2.0, |c| c.global_scale = (c.global_scale + 0.05).min(5.0), &mut changed);
+            self.check_btn(mx, content_my, 270.0, sy + 52.0, |c| c.base_width -= 5.0, &mut changed);
+            self.check_btn(mx, content_my, 345.0, sy + 52.0, |c| c.base_width += 5.0, &mut changed);
+            self.check_btn(mx, content_my, 270.0, sy + 102.0, |c| c.base_height -= 2.0, &mut changed);
+            self.check_btn(mx, content_my, 345.0, sy + 102.0, |c| c.base_height += 2.0, &mut changed);
+            self.check_btn(mx, content_my, 270.0, sy + 152.0, |c| c.expanded_width -= 10.0, &mut changed);
+            self.check_btn(mx, content_my, 345.0, sy + 152.0, |c| c.expanded_width += 10.0, &mut changed);
+            self.check_btn(mx, content_my, 270.0, sy + 202.0, |c| c.expanded_height -= 10.0, &mut changed);
+            self.check_btn(mx, content_my, 345.0, sy + 202.0, |c| c.expanded_height += 10.0, &mut changed);
+
+            let sw_border_y = sy + 260.0;
+            if Self::in_rect(mx, content_my, 326.0, sw_border_y + 3.0, 48.0, 26.0) {
                 self.config.adaptive_border = !self.config.adaptive_border;
                 changed = true;
             }
-            if mx >= 320.0 && mx <= 380.0 && my >= sy + 300.0 && my <= sy + 340.0 {
+            if Self::in_rect(mx, content_my, 326.0, sw_border_y + 53.0, 48.0, 26.0) {
                 self.config.motion_blur = !self.config.motion_blur;
                 changed = true;
             }
-            if mx >= 310.0 && mx <= 375.0 && my >= sy + 353.0 && my <= sy + 379.0 {
+            let font_y = sw_border_y + 100.0;
+            if Self::in_rect(mx, content_my, 310.0, font_y + 3.0, 65.0, 26.0) {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Fonts", &["ttf", "otf"])
                     .pick_file() {
                     self.config.custom_font_path = Some(path.to_string_lossy().into_owned());
+                    self.refresh_custom_font_cache();
                     changed = true;
                 }
             }
-            if self.config.custom_font_path.is_some() && mx >= 235.0 && mx <= 300.0 && my >= sy + 353.0 && my <= sy + 379.0 {
+            if self.config.custom_font_path.is_some() && Self::in_rect(mx, content_my, 235.0, font_y + 3.0, 65.0, 26.0) {
                 self.config.custom_font_path = None;
+                self.refresh_custom_font_cache();
                 changed = true;
             }
-            if my >= SETTINGS_H - 60.0 && my <= SETTINGS_H - 20.0 && mx >= cx - 100.0 && mx <= cx + 100.0 {
+
+            let autostart_y = font_y + 50.0;
+            if Self::in_rect(mx, content_my, 326.0, autostart_y + 3.0, 48.0, 26.0) {
+                self.config.auto_start = !self.config.auto_start;
+                let _ = set_autostart(self.config.auto_start);
+                changed = true;
+            }
+            let autohide_y = autostart_y + 50.0;
+            if Self::in_rect(mx, content_my, 326.0, autohide_y + 3.0, 48.0, 26.0) {
+                self.config.auto_hide = !self.config.auto_hide;
+                changed = true;
+            }
+            let delay_y = autohide_y + 50.0;
+            if self.config.auto_hide {
+                self.check_btn(mx, content_my, 270.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay - 1.0).max(1.0), &mut changed);
+                self.check_btn(mx, content_my, 345.0, delay_y + 2.0, |c| c.auto_hide_delay = (c.auto_hide_delay + 1.0).min(60.0), &mut changed);
+            }
+            let reset_y = if self.config.auto_hide { 710.0 } else { 660.0 };
+            if mx >= cx - 100.0 && mx <= cx + 100.0 && content_my >= reset_y - 24.0 && content_my <= reset_y + 12.0 {
                 self.config = AppConfig::default();
+                self.refresh_custom_font_cache();
                 changed = true;
             }
         } else if my >= 260.0 && my <= 300.0 && mx >= cx - 100.0 && mx <= cx + 100.0 {
             let _ = open::that(APP_HOMEPAGE);
         }
         if changed {
+            let content_h = if self.config.auto_hide { 750.0 } else { 700.0 };
+            let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
+            self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
+            self.scroll_y = self.scroll_y.clamp(0.0, max_scroll);
             save_config(&self.config);
             if let Some(win) = &self.window { win.request_redraw(); }
         }
+    }
+    fn in_rect(mx: f32, my: f32, x: f32, y: f32, w: f32, h: f32) -> bool {
+        mx >= x && mx <= x + w && my >= y && my <= y + h
     }
     fn check_btn<F>(&mut self, mx: f32, my: f32, bx: f32, by: f32, mut f: F, changed: &mut bool) 
     where F: FnMut(&mut AppConfig) {
@@ -299,6 +417,19 @@ impl ApplicationHandler for SettingsApp {
                 let scale = self.window.as_ref().unwrap().scale_factor() as f32;
                 self.logical_mouse_pos = (position.x as f32 / scale, position.y as f32 / scale);
             }
+            WindowEvent::MouseWheel { delta, .. } => {
+                if self.active_tab == 0 {
+                    let diff = match delta {
+                        winit::event::MouseScrollDelta::LineDelta(_, y) => y * 25.0,
+                        winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+                    };
+                    self.target_scroll_y -= diff;
+                    let content_h = if self.config.auto_hide { 750.0 } else { 700.0 };
+                    let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
+                    self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
+                    if let Some(win) = &self.window { win.request_redraw(); }
+                }
+            }
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Left, .. } => self.handle_click(),
             WindowEvent::RedrawRequested => self.draw(),
             _ => (),
@@ -319,8 +450,18 @@ impl ApplicationHandler for SettingsApp {
             if (tb - self.border_switch_pos).abs() > 0.01 { self.border_switch_pos += (tb - self.border_switch_pos) * 0.2; redraw = true; }
             let tbu = if self.config.motion_blur { 1.0 } else { 0.0 };
             if (tbu - self.blur_switch_pos).abs() > 0.01 { self.blur_switch_pos += (tbu - self.blur_switch_pos) * 0.2; redraw = true; }
+            let tas = if self.config.auto_start { 1.0 } else { 0.0 };
+            if (tas - self.autostart_switch_pos).abs() > 0.01 { self.autostart_switch_pos += (tas - self.autostart_switch_pos) * 0.2; redraw = true; }
+            let content_h = if self.config.auto_hide { 750.0 } else { 700.0 };
+            let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
+            self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);
+            if (self.target_scroll_y - self.scroll_y).abs() > 0.1 {
+                self.scroll_y += (self.target_scroll_y - self.scroll_y) * 0.28;
+                redraw = true;
+            } else if (self.scroll_y - self.target_scroll_y).abs() > f32::EPSILON {
+                self.scroll_y = self.target_scroll_y;
+            }
             if redraw { win.request_redraw(); }
-            std::thread::sleep(Duration::from_millis(16));
         }
     }
 }

@@ -107,7 +107,7 @@ impl SmtcListener {
             let _ = manager.SessionsChanged(&handler);
             while active_clone.load(Ordering::Relaxed) {
                 update_info(&manager, &info_clone);
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                std::thread::sleep(std::time::Duration::from_millis(100));
             }
         });
     }
