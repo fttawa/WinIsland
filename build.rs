@@ -9,6 +9,11 @@ fn main() {
             println!("cargo:warning=Icon file not found: {}, executable will use default icon", icon_path);
         }
 
+        res.set("CompanyName", "Eatgrapes");
+        res.set("FileDescription", "WinIsland");
+        res.set("ProductName", "WinIsland");
+        res.set("LegalCopyright", "Copyright (c) Eatgrapes");
+
         let manifest = r#"
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
