@@ -28,6 +28,8 @@ pub struct SettingsApp {
     blur_switch_pos: f32,
     autostart_switch_pos: f32,
     update_switch_pos: f32,
+    acrylic_switch_pos: f32,
+    liquid_switch_pos: f32,
     logical_mouse_pos: (f32, f32),
     font_mgr: FontMgr,
     custom_font_typeface: Option<skia_safe::Typeface>,
@@ -42,6 +44,8 @@ impl SettingsApp {
         let initial_blur = if config.motion_blur { 1.0 } else { 0.0 };
         let initial_autostart = if config.auto_start { 1.0 } else { 0.0 };
         let initial_update = if config.check_for_updates { 1.0 } else { 0.0 };
+        let initial_acrylic = if config.acrylic_effect { 1.0 } else { 0.0 };
+        let initial_liquid = if config.liquid_glass_effect { 1.0 } else { 0.0 };
         let mut app = Self {
             window: None,
             surface: None,
@@ -52,6 +56,8 @@ impl SettingsApp {
             blur_switch_pos: initial_blur,
             autostart_switch_pos: initial_autostart,
             update_switch_pos: initial_update,
+            acrylic_switch_pos: initial_acrylic,
+            liquid_switch_pos: initial_liquid,
             logical_mouse_pos: (0.0, 0.0),
             font_mgr: FontMgr::new(),
             custom_font_typeface: None,
@@ -137,6 +143,8 @@ impl SettingsApp {
                 p.set_color(Color::from_argb(80, 255, 255, 255));
                 canvas.draw_round_rect(Rect::from_xywh(SETTINGS_W - 6.0, bar_y, 4.0, bar_h), 2.0, 2.0, &p);
             }
+        } else if self.active_tab == 1 {
+            self.draw_personalization(canvas);
         } else {
             self.draw_about(canvas);
         }
@@ -151,24 +159,29 @@ impl SettingsApp {
         }
     }
     fn draw_tabs(&self, canvas: &skia_safe::Canvas) {
-        let font = self.get_font(14.0, true);
+        let font = self.get_font(12.0, true);
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
         let center_x = SETTINGS_W / 2.0;
-        let tabs = [tr("tab_general"), tr("tab_about")];
+        let tabs = [tr("tab_general"), tr("tab_personalization"), tr("tab_about")];
+        let tab_w = 110.0;
+        let total_w = tab_w * 3.0 + 6.0;
+        let start_x = center_x - total_w / 2.0;
+        
         paint.set_color(COLOR_CARD);
-        canvas.draw_round_rect(Rect::from_xywh(center_x - 85.0, 20.0, 170.0, 36.0), 10.0, 10.0, &paint);
+        canvas.draw_round_rect(Rect::from_xywh(start_x, 20.0, total_w, 36.0), 10.0, 10.0, &paint);
+        
         for (i, label) in tabs.iter().enumerate() {
-            let bx = center_x - 82.0 + (i as f32 * 82.0);
+            let bx = start_x + 3.0 + (i as f32 * tab_w);
             if self.active_tab == i {
                 paint.set_color(COLOR_CARD_HIGHLIGHT);
-                canvas.draw_round_rect(Rect::from_xywh(bx, 23.0, 80.0, 30.0), 8.0, 8.0, &paint);
+                canvas.draw_round_rect(Rect::from_xywh(bx, 23.0, tab_w - 3.0, 30.0), 8.0, 8.0, &paint);
                 paint.set_color(COLOR_TEXT_PRI);
             } else {
                 paint.set_color(COLOR_TEXT_SEC);
             }
             let (_, rect) = font.measure_str(label, None);
-            canvas.draw_str(label, (bx + (80.0 - rect.width()) / 2.0, 43.0), &font, &paint);
+            canvas.draw_str(label, (bx + (tab_w - 3.0 - rect.width()) / 2.0, 43.0), &font, &paint);
         }
     }
     fn draw_general(&self, canvas: &skia_safe::Canvas) {
@@ -275,6 +288,26 @@ impl SettingsApp {
         let reset_y = delay_y + 60.0;
         canvas.draw_str(&reset_str, ((SETTINGS_W - rect.width()) / 2.0, reset_y), &font, &paint);
     }
+    fn draw_personalization(&self, canvas: &skia_safe::Canvas) {
+        let font = self.get_font(14.0, false);
+        let mut paint = Paint::default();
+        paint.set_anti_alias(true);
+        
+        let start_y = 90.0;
+        
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, start_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        canvas.draw_str(&tr("acrylic_effect"), (35.0, start_y + 21.0), &font, &paint);
+        self.draw_switch(canvas, 326.0, start_y + 3.0, self.acrylic_switch_pos);
+        
+        let liquid_y = start_y + 50.0;
+        paint.set_color(COLOR_CARD);
+        canvas.draw_round_rect(Rect::from_xywh(20.0, liquid_y - 5.0, SETTINGS_W - 40.0, 42.0), 10.0, 10.0, &paint);
+        paint.set_color(COLOR_TEXT_PRI);
+        canvas.draw_str(&tr("liquid_glass_effect"), (35.0, liquid_y + 21.0), &font, &paint);
+        self.draw_switch(canvas, 326.0, liquid_y + 3.0, self.liquid_switch_pos);
+    }
     fn draw_text_button_danger(&self, canvas: &skia_safe::Canvas, x: f32, y: f32, w: f32, h: f32, label: &str) {
         let mut paint = Paint::default();
         paint.set_anti_alias(true);
@@ -358,8 +391,13 @@ impl SettingsApp {
         };
 
         if lmy >= 20.0 && lmy <= 56.0 {
-            if lmx >= cx - 85.0 && lmx <= cx { self.active_tab = 0; changed = true; }
-            else if lmx >= cx && lmx <= cx + 85.0 { self.active_tab = 1; changed = true; }
+            let tab_w = 110.0;
+            let total_w = tab_w * 3.0 + 6.0;
+            let start_x = cx - total_w / 2.0;
+            if lmx >= start_x && lmx <= start_x + total_w {
+                let idx = ((lmx - start_x - 3.0) / tab_w).floor() as usize;
+                if idx < 3 { self.active_tab = idx; changed = true; }
+            }
         }
         if self.active_tab == 0 {
             let sy = 90.0;
@@ -444,7 +482,18 @@ impl SettingsApp {
                 self.refresh_custom_font_cache();
                 changed = true;
             }
-        } else if lmy >= 260.0 && lmy <= 300.0 && lmx >= cx - 100.0 && lmx <= cx + 100.0 {
+        } else if self.active_tab == 1 {
+            let start_y = 90.0;
+            if Self::in_rect(lmx, content_my, 326.0, start_y + 3.0, 48.0, 26.0) {
+                self.config.acrylic_effect = !self.config.acrylic_effect;
+                changed = true;
+            }
+            let liquid_y = start_y + 50.0;
+            if Self::in_rect(lmx, content_my, 326.0, liquid_y + 3.0, 48.0, 26.0) {
+                self.config.liquid_glass_effect = !self.config.liquid_glass_effect;
+                changed = true;
+            }
+        } else if self.active_tab == 2 && lmy >= 260.0 && lmy <= 300.0 && lmx >= cx - 100.0 && lmx <= cx + 100.0 {
             let _ = open::that(APP_HOMEPAGE);
         }
         if changed {
@@ -475,7 +524,10 @@ impl SettingsApp {
         };
 
         if lmy >= 20.0 && lmy <= 56.0 {
-            if lmx >= cx - 85.0 && lmx <= cx + 85.0 { return true; }
+            let tab_w = 110.0;
+            let total_w = tab_w * 3.0 + 6.0;
+            let start_x = cx - total_w / 2.0;
+            if lmx >= start_x && lmx <= start_x + total_w { return true; }
         }
         if self.active_tab == 0 {
             let sy = 90.0;
@@ -517,7 +569,12 @@ impl SettingsApp {
             }
             let reset_y = delay_y + 60.0;
             if lmx >= cx - 100.0 && lmx <= cx + 100.0 && content_my >= reset_y - 24.0 && content_my <= reset_y + 12.0 { return true; }
-        } else if lmy >= 260.0 && lmy <= 300.0 && lmx >= cx - 100.0 && lmx <= cx + 100.0 {
+        } else if self.active_tab == 1 {
+            let start_y = 90.0;
+            if Self::in_rect(lmx, content_my, 326.0, start_y + 3.0, 48.0, 26.0) { return true; }
+            let liquid_y = start_y + 50.0;
+            if Self::in_rect(lmx, content_my, 326.0, liquid_y + 3.0, 48.0, 26.0) { return true; }
+        } else if self.active_tab == 2 && lmy >= 260.0 && lmy <= 300.0 && lmx >= cx - 100.0 && lmx <= cx + 100.0 {
             return true;
         }
         false
@@ -621,6 +678,10 @@ impl ApplicationHandler for SettingsApp {
             if (tas - self.autostart_switch_pos).abs() > 0.01 { self.autostart_switch_pos += (tas - self.autostart_switch_pos) * 0.2; redraw = true; }
             let tcu = if self.config.check_for_updates { 1.0 } else { 0.0 };
             if (tcu - self.update_switch_pos).abs() > 0.01 { self.update_switch_pos += (tcu - self.update_switch_pos) * 0.2; redraw = true; }
+            let ta = if self.config.acrylic_effect { 1.0 } else { 0.0 };
+            if (ta - self.acrylic_switch_pos).abs() > 0.01 { self.acrylic_switch_pos += (ta - self.acrylic_switch_pos) * 0.2; redraw = true; }
+            let tl = if self.config.liquid_glass_effect { 1.0 } else { 0.0 };
+            if (tl - self.liquid_switch_pos).abs() > 0.01 { self.liquid_switch_pos += (tl - self.liquid_switch_pos) * 0.2; redraw = true; }
             let content_h = if self.config.auto_hide { 900.0 } else { 850.0 };
             let max_scroll = (content_h - (SETTINGS_H - 70.0)).max(0.0);
             self.target_scroll_y = self.target_scroll_y.clamp(0.0, max_scroll);

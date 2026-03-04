@@ -21,10 +21,13 @@ use crate::core::smtc::SmtcListener;
 use crate::core::audio::AudioProcessor;
 use crate::window::tray::{TrayAction, TrayManager};
 use crate::utils::icon::get_app_icon;
+use crate::utils::screen::ScreenCapture;
+use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE};
 
 pub struct App {
     window: Option<Arc<Window>>,
     surface: Option<Surface<Arc<Window>, Arc<Window>>>,
+    screen_capture: Option<ScreenCapture>,
     tray: Option<TrayManager>,
     smtc: SmtcListener,
     audio: AudioProcessor,
@@ -67,6 +70,7 @@ impl Default for App {
         Self {
             window: None,
             surface: None,
+            screen_capture: None,
             tray: None,
             config: config.clone(),
             expanded: false,
@@ -164,6 +168,18 @@ impl ApplicationHandler for App {
             let is_light = window.theme() == Some(winit::window::Theme::Light);
             self.tray = Some(TrayManager::new(is_light));
             Self::enforce_topmost(&window);
+            
+            // Initialize screen capture and exclude window from capture
+            if let Ok(handle) = window.window_handle() {
+                if let RawWindowHandle::Win32(raw) = handle.as_raw() {
+                    let hwnd = HWND(raw.hwnd.get() as *mut core::ffi::c_void);
+                    unsafe {
+                        let _ = SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+                    }
+                }
+            }
+            self.screen_capture = ScreenCapture::new(self.os_w as i32, self.os_h as i32);
+            
             window.request_redraw();
         }
     }
@@ -332,6 +348,16 @@ impl ApplicationHandler for App {
                                     music_active = true;
                                 }
                             }
+                            
+                            let bg_image = if self.config.acrylic_effect || self.config.liquid_glass_effect {
+                                if let Some(sc) = &mut self.screen_capture {
+                                    sc.capture(self.win_x, self.win_y)
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
 
                             draw_island(
                                 surface,
@@ -354,6 +380,9 @@ impl ApplicationHandler for App {
                                 self.lyric_transition,
                                 self.config.motion_blur,
                                 self.spring_hide.value,
+                                self.config.acrylic_effect,
+                                self.config.liquid_glass_effect,
+                                bg_image,
                             );
                         }
                     }
@@ -426,6 +455,9 @@ impl ApplicationHandler for App {
                             let center_x = mon_pos.x + (mon_size.width as i32) / 2;
                             self.win_x = center_x - (self.os_w as i32) / 2;
                             window.set_outer_position(PhysicalPosition::new(self.win_x, self.win_y));
+                        }
+                        if let Some(sc) = &mut self.screen_capture {
+                            sc.resize(self.os_w as i32, self.os_h as i32);
                         }
                     }
                 }

@@ -33,6 +33,9 @@ pub fn draw_island(
     lyric_transition: f32,
     use_blur: bool,
     hide_progress: f32,
+    acrylic_effect: bool,
+    liquid_effect: bool,
+    bg_image: Option<skia_safe::Image>,
 ) {
     let mut buffer = surface.buffer_mut().unwrap();
     let mut sk_surface = SK_SURFACE.with(|cell| {
@@ -60,10 +63,92 @@ pub fn draw_island(
     let blur_filter = if has_blur { image_filters::blur(sigmas, None, None, None) } else { None };
     canvas.save();
     canvas.clip_rrect(rrect, ClipOp::Intersect, true);
+
+    // Draw background blur if available
+    if let Some(image) = bg_image {
+        let mut blur_paint = Paint::default();
+        // Heavy blur for acrylic/glass effect
+        blur_paint.set_image_filter(image_filters::blur((15.0, 15.0), None, None, None));
+        // Draw the captured screen image at (0,0) because it matches the window coordinates
+        canvas.draw_image(&image, (0, 0), Some(&blur_paint));
+    }
+
     let mut bg_paint = Paint::default();
-    bg_paint.set_color(Color::BLACK);
     bg_paint.set_anti_alias(true);
-    canvas.draw_rrect(rrect, &bg_paint);
+
+    if acrylic_effect {
+        bg_paint.set_color(Color::from_argb(150, 20, 20, 20)); // More transparent for blur to show through
+        // Add noise filter
+        let noise_shader = skia_safe::shaders::perlin_noise_turbulence(
+            (0.5, 0.5),
+            1,
+            0.0,
+            None
+        );
+        if let Some(noise) = noise_shader {
+            // Composite noise with background color
+             let mut noise_paint = Paint::default();
+             noise_paint.set_shader(noise);
+             noise_paint.set_alpha_f(0.05);
+             noise_paint.set_blend_mode(skia_safe::BlendMode::Overlay);
+             
+             canvas.draw_rrect(rrect, &bg_paint);
+             canvas.draw_rrect(rrect, &noise_paint);
+        } else {
+            canvas.draw_rrect(rrect, &bg_paint);
+        }
+    } else {
+        if liquid_effect {
+            // For liquid effect without acrylic, we still want some dark tint
+             bg_paint.set_color(Color::from_argb(180, 0, 0, 0));
+             canvas.draw_rrect(rrect, &bg_paint);
+        } else {
+             bg_paint.set_color(Color::BLACK);
+             canvas.draw_rrect(rrect, &bg_paint);
+        }
+    }
+    
+    if liquid_effect {
+        // Liquid/Glass Gloss
+        let mut gloss_paint = Paint::default();
+        gloss_paint.set_anti_alias(true);
+        let gradient = skia_safe::gradient_shader::linear(
+            ((offset_x, offset_y), (offset_x, offset_y + current_h / 2.0)),
+            skia_safe::gradient_shader::GradientShaderColors::Colors(&[
+                Color::from_argb(60, 255, 255, 255),
+                Color::from_argb(0, 255, 255, 255),
+            ]),
+            None,
+            skia_safe::TileMode::Clamp,
+            None,
+            None,
+        );
+        if let Some(shader) = gradient {
+            gloss_paint.set_shader(shader);
+            canvas.draw_rrect(rrect, &gloss_paint);
+        }
+
+        // Rim Light (Top Edge)
+        let mut rim_paint = Paint::default();
+        rim_paint.set_anti_alias(true);
+        rim_paint.set_style(skia_safe::PaintStyle::Stroke);
+        rim_paint.set_stroke_width(1.5 * global_scale);
+        let rim_gradient = skia_safe::gradient_shader::linear(
+            ((offset_x, offset_y), (offset_x, offset_y + current_h)),
+            skia_safe::gradient_shader::GradientShaderColors::Colors(&[
+                Color::from_argb(100, 255, 255, 255),
+                Color::from_argb(20, 255, 255, 255),
+            ]),
+            None,
+            skia_safe::TileMode::Clamp,
+            None,
+            None,
+        );
+        if let Some(shader) = rim_gradient {
+            rim_paint.set_shader(shader);
+            canvas.draw_rrect(rrect, &rim_paint);
+        }
+    }
 
     let expanded_alpha_f = (expansion_progress.powf(2.0)).clamp(0.0, 1.0) * (1.0 - hide_progress);
     let mini_alpha_f = (1.0 - expansion_progress * 1.5).clamp(0.0, 1.0) * (1.0 - hide_progress);

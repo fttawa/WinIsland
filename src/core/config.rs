@@ -36,6 +36,10 @@ pub struct AppConfig {
     pub lyrics_source: String,
     #[serde(default = "default_lyrics_fallback")]
     pub lyrics_fallback: bool,
+    #[serde(default = "default_acrylic_effect")]
+    pub acrylic_effect: bool,
+    #[serde(default = "default_liquid_glass_effect")]
+    pub liquid_glass_effect: bool,
 }
 
 fn default_show_lyrics() -> bool {
@@ -78,6 +82,14 @@ fn default_lyrics_fallback() -> bool {
     true
 }
 
+fn default_acrylic_effect() -> bool {
+    false
+}
+
+fn default_liquid_glass_effect() -> bool {
+    false
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -100,6 +112,8 @@ impl Default for AppConfig {
             language: "auto".to_string(),
             lyrics_source: "163".to_string(),
             lyrics_fallback: true,
+            acrylic_effect: false,
+            liquid_glass_effect: false,
         }
     }
 }

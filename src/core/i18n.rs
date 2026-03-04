@@ -19,6 +19,7 @@ static I18N: Lazy<Arc<RwLock<I18n>>> = Lazy::new(|| {
 
 const LANG_EN: &str = r#"
 tab_general=General
+tab_personalization=Personalization
 tab_about=About
 global_scale=Global Scale
 base_width=Base Width
@@ -54,10 +55,13 @@ update_available_desc=A new version of WinIsland is available (Released: {}). Wo
 update_failed_title=Update Failed
 update_failed_dl=Failed to download the new version.
 update_failed_save=Failed to save the new version.
+acrylic_effect=Acrylic Effect
+liquid_glass_effect=Liquid Glass
 "#;
 
 const LANG_ZH: &str = r#"
 tab_general=常规设置
+tab_personalization=个性化
 tab_about=关于
 global_scale=全局缩放
 base_width=基础宽度
@@ -93,6 +97,8 @@ update_available_desc=WinIsland 有新版本可用 (发布时间: {})。是否�
 update_failed_title=更新失败
 update_failed_dl=无法下载新版本。
 update_failed_save=无法保存新版本文件。
+acrylic_effect=亚克力效果
+liquid_glass_effect=液态玻璃效果
 "#;
 
 impl I18n {
