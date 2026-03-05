@@ -308,7 +308,7 @@ impl SettingsApp {
     }
 
     fn draw_about(&self, canvas: &skia_safe::Canvas) {
-        let mut paint = Paint::default(); paint.set_anti_alias(true); paint.set_color(COLOR_TEXT_PRI); canvas.draw_str("WinIsland", ((SETTINGS_W - self.get_font(28.0, true).measure_str("WinIsland", None).1.width()) / 2.0, 160.0), &self.get_font(28.0, true), &paint);
+        let mut paint = Paint::default(); paint.set_anti_alias(true); paint.set_color(COLOR_TEXT_PRI); canvas.draw_str("WinIsland-X", ((SETTINGS_W - self.get_font(28.0, true).measure_str("WinIsland-X", None).1.width()) / 2.0, 160.0), &self.get_font(28.0, true), &paint);
         paint.set_color(COLOR_TEXT_SEC); let v_str = format!("Version {}", APP_VERSION); canvas.draw_str(&v_str, ((SETTINGS_W - self.get_font(14.0, false).measure_str(&v_str, None).1.width()) / 2.0, 195.0), &self.get_font(14.0, false), &paint);
         let a_str = format!("{} {}", tr("created_by"), APP_AUTHOR); canvas.draw_str(&a_str, ((SETTINGS_W - self.get_font(14.0, false).measure_str(&a_str, None).1.width()) / 2.0, 220.0), &self.get_font(14.0, false), &paint);
         paint.set_color(COLOR_ACCENT); canvas.draw_str(tr("visit_homepage"), ((SETTINGS_W - self.get_font(14.0, false).measure_str(tr("visit_homepage"), None).1.width()) / 2.0, 280.0), &self.get_font(14.0, false), &paint);

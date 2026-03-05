@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 pub const APP_VERSION: &str = "1.0.0";
 pub const APP_AUTHOR: &str = "Eatgrapes";
-pub const APP_HOMEPAGE: &str = "https://github.com/Eatgrapes/WinIsland";
-pub const WINDOW_TITLE: &str = "WinIsland";
+pub const APP_HOMEPAGE: &str = "https://github.com/fttawa/WinIsland-X";
+pub const WINDOW_TITLE: &str = "WinIsland-X";
 pub const TOP_OFFSET: i32 = 10;
 pub const PADDING: f32 = 80.0;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

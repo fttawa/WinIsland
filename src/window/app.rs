@@ -373,7 +373,7 @@ impl ApplicationHandler for App {
                             #[cfg(target_os = "windows")]
                             {
                                 let _ = std::process::Command::new("taskkill")
-                                    .args(&["/F", "/IM", "WinIsland.exe"])
+                                    .args(&["/F", "/IM", "WinIsland-X.exe"])
                                     .spawn();
                             }
                             // 立即终止当前进程，防止后台线程导致的无响应

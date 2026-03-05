@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: "WinIsland"
+  name: "WinIsland-X"
   text: "Sleek. Dynamic. Windows."
   tagline: "A visually stunning and extensible dynamic island for your Windows desktop."
   image:

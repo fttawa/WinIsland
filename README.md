@@ -1,62 +1,106 @@
-<p align="center">
-  <img src="resources/info-en.png" width="400">
-</p>
+<div align="center">
+  <img src="resources/info-en.png" width="450" alt="WinIsland-X Banner">
 
-# WinIsland (Enhanced)
+  # WinIsland-X
+  **The Next-Generation Dynamic Island Experience for Windows**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/Language-Rust-orange.svg)](https://www.rust-lang.org/)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+  [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
+  [![Build](https://img.shields.io/github/actions/workflow/status/fttawa/WinIsland-X/rust.yml?style=for-the-badge)](https://github.com/fttawa/WinIsland-X/actions)
+  [![Platform](https://img.shields.io/badge/Platform-Windows_10%20%7C%2011-0078d7.svg?style=for-the-badge&logo=windows)](https://github.com/fttawa/WinIsland-X)
 
-> [!IMPORTANT]
-> 本项目是基于 [WinIsland](https://github.com/Eatgrapes/WinIsland) 的二次开发版本，感谢原作者 [Eatgrapes](https://github.com/Eatgrapes) 的出色工作。
-> 
-> This project is a secondary development based on the original [WinIsland](https://github.com/Eatgrapes/WinIsland) repository.
+  ---
 
-**WinIsland** is a high-performance, visually stunning **Dynamic Island** implementation for Windows. Built with Rust and Skia, it brings fluid animations and system-integrated widgets to your desktop.
+  [✨ Features](#-features) • [🚀 Getting Started](#-getting-started) • [🧩 Plugin System](#-plugin-system) • [🛠 Development](#-development) • [📜 License](#-license)
+
+</div>
+
+## 📖 Overview
+
+> [!IMPORTANT]  
+> This project is a **highly enhanced secondary development** based on the original [WinIsland](https://github.com/Eatgrapes/WinIsland). Special thanks to [Eatgrapes](https://github.com/Eatgrapes) for the foundational work.
+
+**WinIsland-X** is a high-performance, visually stunning, and fully extensible implementation of the "Dynamic Island" for Windows. Built from the ground up with **Rust** and **Skia**, it combines fluid physics-based animations with deep system integration to provide a premium desktop experience.
+
+---
 
 ## ✨ Features
 
-- 🍎 **Smooth Animations**: Powered by a mass-spring-damper physics engine for a natural "apple-like" feel.
-- 🎨 **Modern Aesthetics**:
-  - **Enhanced Acrylic & Mica**: Real frosted glass with noise textures and soft outer glows.
-  - **Liquid Glass Mode**: Custom SkSL shaders for flowing, organic backgrounds.
-- 🎵 **Music Integration**:
-  - Full Windows SMTC support (Spotify, NetEase, Web players, etc.).
-  - Real-time spectrum visualizer.
-  - Dynamic progress bars with color-thief palette extraction.
-  - Synchronized lyrics (163 Music & LRCLIB support).
-- 🧩 **Plugin System**: Fully extensible via DLL plugins. Add your own widgets or system monitors.
-- ⚙️ **Customization**:
-  - System-native Color Picker for personalized themes.
-  - Configurable FPS display, GPU status, and scaling.
-  - Global hotkeys and auto-hide support.
+### 🎨 Visual Excellence
+- **Enhanced Acrylic & Mica**: Authentically rendered frosted glass with customizable noise grain and soft outer glows.
+- **Liquid Glass**: Dynamic SkSL shaders that generate organic, flowing backgrounds.
+- **Fluid Physics**: natural movement powered by a high-fidelity **Mass-Spring-Damper** physics engine.
+- **Native Color Picker**: Full control over your theme with the Windows system color dialog.
+
+### 🎵 Media & Integration
+- **SMTC Integration**: Seamlessly control and monitor music from Spotify, NetEase, Web Browsers, and more.
+- **Real-time Spectrum**: A highly responsive 6-band audio visualizer.
+- **Dynamic Progress Bars**: Smooth progress tracking with automatic color extraction from album art.
+- **Smart Adaptive Borders**: Borders that dynamically adjust weight based on screen content.
+
+### ⚡ Performance & Extensions
+- **Real-time Monitoring**: Smooth, de-jittered FPS counter and GPU rendering status.
+- **Plugin Architecture**: A robust DLL-based plugin system. Inject custom logic, widgets, or system monitors with ease.
+- **Low Footprint**: Engineered in Rust for near-zero idle CPU usage and minimal memory impact.
+
+---
+
+## 🧩 Plugin System
+
+WinIsland-X is designed to be a platform. With our **DLL Plugin System**, you can:
+- 📡 **Display Custom Info**: Show weather, CPU usage, or network speeds in the island.
+- ⌨️ **Control Actions**: Request the island to expand or collapse programmatically.
+- ⚙️ **Custom Configuration**: Provide your own native settings UI.
+
+Explore the [Sample Plugin](winisland_sample_plugin/) to start building today.
+
+---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- [Rust](https://www.rust-lang.org/tools/install) (latest stable)
-- CMake (required by Skia build)
+### Installation
+1. Download the latest release from the [Releases Page](https://github.com/fttawa/WinIsland-X/releases).
+2. Extract the archive.
+3. Run `WinIsland-X.exe`.
 
-### Build and Run
-```cmd
-git clone https://github.com/Eatgrapes/WinIsland.git
-cd WinIsland
-# Build the main application
+### Build from Source
+Ensure you have the latest **Rust stable** and **CMake** installed.
+
+```bash
+# Clone the repository
+git clone https://github.com/fttawa/WinIsland-X.git
+cd WinIsland-X
+
+# Build the release binary
 cargo build --release
-# Run
-./target/release/WinIsland.exe
+
+# The executable will be in target/release/
 ```
 
-## 🔌 Plugins
-WinIsland supports dynamic DLL plugins. To use a plugin:
-1. Create a `plugins` folder next to `WinIsland.exe`.
-2. Drop the `.dll` plugin files into the folder.
-3. Manage them via **Settings -> Plugins**.
+---
 
-Check the [Development Guide](DEVELOPMENT.md) to build your own plugins.
+## 🔌 Documentation
+
+Detailed guides for users and developers:
+- [📘 User Guide](https://fttawa.github.io/WinIsland-X/zh/guide)
+- [🛠 Development Guide](DEVELOPMENT.md) - Learn how to build plugins and understand the core architecture.
+- [🌐 Web Documentation](https://fttawa.github.io/WinIsland-X/)
+
+---
 
 ## 🤝 Contributing
-Contributions are welcome! Whether it's bug fixes, UI improvements, or new plugins, feel free to open a PR.
+
+We welcome all kinds of contributions!
+- 🐛 **Report Bugs**: Open an issue if something isn't working.
+- 💡 **Suggest Features**: We'd love to hear your ideas.
+- 👩‍💻 **Code**: PRs are always appreciated.
+
+---
 
 ## 📜 License
-This project is licensed under the [MIT License](LICENSE).
+
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for more information.
+
+<div align="center">
+  <sub>Built with ❤️ by the WinIsland-X Community.</sub>
+</div>

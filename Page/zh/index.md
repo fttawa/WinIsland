@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: "WinIsland"
+  name: "WinIsland-X"
   text: "流畅。灵动。Windows。"
   tagline: "视觉惊艳、高度可扩展的 Windows 桌面灵动岛。"
   image:

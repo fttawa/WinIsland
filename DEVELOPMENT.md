@@ -1,10 +1,10 @@
-# WinIsland Development Guide
+# WinIsland-X Development Guide
 
-Welcome to the development guide for WinIsland. This document explains the architecture, the rendering pipeline, and how to extend the application using the Plugin System.
+Welcome to the development guide for WinIsland-X. This document explains the architecture, the rendering pipeline, and how to extend the application using the Plugin System.
 
 ## 🏗 Architecture Overview
 
-WinIsland is structured into several core modules:
+WinIsland-X is structured into several core modules:
 - **`src/main.rs`**: Application entry point, handles single-instance check and initialization.
 - **`src/window/app.rs`**: The main UI loop. Manages the window, event loop, and physics-based animations (Springs).
 - **`src/core/render.rs`**: The rendering engine. Uses Skia to draw the island, effects (Acrylic/Liquid), and orchestrates component drawing.
@@ -13,7 +13,7 @@ WinIsland is structured into several core modules:
 
 ## 🔌 Plugin Development
 
-WinIsland plugins are dynamic libraries (`.dll`) that implement a specific C-ABI interface.
+WinIsland-X plugins are dynamic libraries (`.dll`) that implement a specific C-ABI interface.
 
 ### 1. Plugin Data Structures (FFI)
 
